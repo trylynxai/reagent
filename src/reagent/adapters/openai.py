@@ -65,15 +65,15 @@ class OpenAIAdapter(Adapter):
         """Uninstall the adapter."""
         self._installed = False
 
-    def wrap_client(self, openai_client: Any, context: RunContext) -> Any:
-        """Wrap an OpenAI client to capture calls.
+    def reagent_openai_client(self, openai_client: Any, context: RunContext) -> Any:
+        """Instrument an OpenAI client to capture calls.
 
         Args:
             openai_client: OpenAI client instance
             context: Run context to record events to
 
         Returns:
-            Wrapped client
+            Instrumented client
         """
         return OpenAIClientWrapper(openai_client, context)
 
@@ -228,16 +228,16 @@ class CompletionsWrapper:
         return (prompt_tokens / 1000) * 0.03 + (completion_tokens / 1000) * 0.06
 
 
-def instrument_openai(context: RunContext) -> Callable[[Any], Any]:
+def reagent_openai_call(context: RunContext) -> Callable[[Any], Any]:
     """Decorator to instrument an OpenAI client.
 
     Usage:
-        @instrument_openai(context)
+        @reagent_openai_call(context)
         def get_client():
             return OpenAI()
 
         client = get_client()
-        # client is now wrapped
+        # client is now instrumented with ReAgent
     """
 
     def decorator(func: Callable[..., Any]) -> Callable[..., Any]:

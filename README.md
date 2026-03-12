@@ -136,34 +136,46 @@ result = agent_executor.invoke({"input": "What's the weather in NYC?"})
 ```python
 from openai import OpenAI
 from reagent import ReAgent
-from reagent.adapters.openai import wrap_openai_client
+from reagent.adapters.openai import OpenAIAdapter
+from reagent.schema.run import RunConfig
 
 # Initialize ReAgent
-client = ReAgent()
+reagent_client = ReAgent()
 
-# Wrap the OpenAI client
-openai_client = OpenAI()
-wrapped_client = wrap_openai_client(
-    openai_client,
-    reagent_client=client,
-    project="openai-app",
-)
+# Create a trace context and instrument the OpenAI client
+with reagent_client.trace(RunConfig(name="openai-app", project="my-project")) as ctx:
+    adapter = OpenAIAdapter(reagent_client)
+    openai_client = adapter.reagent_openai_client(OpenAI(), context=ctx)
 
-# Use as normal - all calls are automatically recorded
-response = wrapped_client.chat.completions.create(
-    model="gpt-4",
-    messages=[{"role": "user", "content": "Hello!"}],
-)
-
-# Errors are captured with full context
-try:
-    response = wrapped_client.chat.completions.create(
+    # Use as normal - all calls are automatically recorded
+    response = openai_client.chat.completions.create(
         model="gpt-4",
-        messages=[{"role": "user", "content": "x" * 1000000}],  # Too long
+        messages=[{"role": "user", "content": "Hello!"}],
     )
-except Exception as e:
-    # Error is already recorded in ReAgent
-    pass
+
+    # Errors are captured with full context
+    try:
+        response = openai_client.chat.completions.create(
+            model="gpt-4",
+            messages=[{"role": "user", "content": "x" * 1000000}],  # Too long
+        )
+    except Exception as e:
+        # Error is already recorded in ReAgent
+        pass
+```
+
+Or use the decorator approach:
+
+```python
+from reagent.adapters.openai import reagent_openai_call
+
+with reagent_client.trace(RunConfig(name="openai-app")) as ctx:
+    @reagent_openai_call(ctx)
+    def get_client():
+        return OpenAI()
+
+    openai_client = get_client()  # Instrumented with ReAgent
+    response = openai_client.chat.completions.create(...)
 ```
 
 ### Manual Integration
