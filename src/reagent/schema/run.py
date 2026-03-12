@@ -145,7 +145,11 @@ class RunMetadata(BaseModel):
         error: str | None = None,
         error_type: str | None = None,
     ) -> None:
-        """Mark the run as complete."""
+        """Mark the run as complete.
+
+        If the run failed and no failure_category was manually set,
+        auto-classifies the failure using the rule-based classifier.
+        """
         self.end_time = datetime.utcnow()
         if self.start_time:
             delta = self.end_time - self.start_time
@@ -155,6 +159,16 @@ class RunMetadata(BaseModel):
             self.status = Status.FAILED
             self.error = error
             self.error_type = error_type
+
+            # Auto-classify if not manually set
+            if not self.failure_category:
+                from reagent.classification.classifier import classify_failure
+
+                result = classify_failure(
+                    error=error,
+                    error_type=error_type,
+                )
+                self.failure_category = result.category.value
         else:
             self.status = Status.COMPLETED
             # Only set output if provided, preserving any previously set output

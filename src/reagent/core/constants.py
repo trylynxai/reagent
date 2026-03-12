@@ -77,6 +77,22 @@ class Status(str, Enum):
     CANCELLED = "cancelled"
 
 
+class FailureCategory(str, Enum):
+    """Categories for classifying agent failures."""
+
+    TOOL_TIMEOUT = "tool_timeout"
+    TOOL_ERROR = "tool_error"
+    RATE_LIMIT = "rate_limit"
+    CONTEXT_OVERFLOW = "context_overflow"
+    AUTHENTICATION = "authentication"
+    VALIDATION_ERROR = "validation_error"
+    CHAIN_ERROR = "chain_error"
+    CONNECTION_ERROR = "connection_error"
+    PERMISSION_ERROR = "permission_error"
+    RESOURCE_EXHAUSTED = "resource_exhausted"
+    UNKNOWN = "unknown"
+
+
 class BackpressurePolicy(str, Enum):
     """Policy for handling buffer overflow."""
 

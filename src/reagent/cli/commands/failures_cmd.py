@@ -31,6 +31,9 @@ CATEGORY_COLORS = {
     "validation_error": "bright_red",
     "chain_error": "blue",
     "authentication": "bright_yellow",
+    "connection_error": "red",
+    "permission_error": "bright_yellow",
+    "resource_exhausted": "bright_red",
     "unknown": "dim",
 }
 
