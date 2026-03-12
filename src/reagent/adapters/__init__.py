@@ -23,3 +23,15 @@ def get_openai_adapter() -> type:
     """Get the OpenAI adapter (lazy import)."""
     from reagent.adapters.openai import OpenAIAdapter
     return OpenAIAdapter
+
+
+def get_crewai_adapter() -> type:
+    """Get the CrewAI adapter (lazy import)."""
+    from reagent.adapters.crewai import CrewAIAdapter
+    return CrewAIAdapter
+
+
+def get_llamaindex_adapter() -> type:
+    """Get the LlamaIndex adapter (lazy import)."""
+    from reagent.adapters.llamaindex import LlamaIndexAdapter
+    return LlamaIndexAdapter
