@@ -91,12 +91,12 @@ def _interactive_replay(
 
     debugger = ReplayDebugger(engine, run_id)
 
-    console.print("[bold]ReAgent Interactive Replay Debugger[/bold]")
-    console.print("Type 'help' for available commands.")
-    console.print()
-
-    # Start replay
+    # Start replay (prints banner)
     debugger.start(from_step=from_step, to_step=to_step)
+
+    console.print()
+    console.print("[dim]Type 'help' for commands, 'step' to advance[/dim]")
+    console.print()
 
     # Enter REPL
     while not debugger.is_finished:
@@ -107,13 +107,11 @@ def _interactive_replay(
             if not cmd:
                 continue
 
-            result = debugger.execute_command(cmd)
-            if result:
-                console.print(result)
+            debugger.execute_command(cmd)
 
         except KeyboardInterrupt:
             console.print("\n[yellow]Use 'exit' to quit[/yellow]")
         except EOFError:
             break
 
-    console.print("[green]Replay session ended[/green]")
+    console.print("[green]Replay session ended.[/green]")
