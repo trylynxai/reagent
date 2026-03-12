@@ -1,0 +1,1016 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ReAgent Run Report - {{ RUN_NAME }}</title>
+    <style>
+        :root {
+            --bg-primary: #1e1e1e;
+            --bg-secondary: #252526;
+            --bg-tertiary: #2d2d30;
+            --bg-hover: #3e3e42;
+            --text-primary: #d4d4d4;
+            --text-secondary: #9d9d9d;
+            --text-muted: #6d6d6d;
+            --border-color: #3e3e42;
+            --accent-blue: #569cd6;
+            --accent-green: #4ec9b0;
+            --accent-yellow: #dcdcaa;
+            --accent-orange: #ce9178;
+            --accent-red: #f14c4c;
+            --accent-purple: #c586c0;
+            --success: #4ec9b0;
+            --warning: #dcdcaa;
+            --error: #f14c4c;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+
+        /* Header */
+        .header {
+            background-color: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-color);
+            padding: 16px 24px;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header-content {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 16px;
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .logo {
+            font-size: 20px;
+            font-weight: 600;
+            color: var(--accent-blue);
+        }
+
+        .run-title {
+            font-size: 16px;
+            color: var(--text-primary);
+        }
+
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 4px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .status-completed { background-color: rgba(78, 201, 176, 0.2); color: var(--success); }
+        .status-failed { background-color: rgba(241, 76, 76, 0.2); color: var(--error); }
+        .status-running { background-color: rgba(86, 156, 214, 0.2); color: var(--accent-blue); }
+
+        .failure-category {
+            background-color: rgba(241, 76, 76, 0.15);
+            color: var(--accent-orange);
+            padding: 4px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            margin-left: 8px;
+        }
+
+        /* Stats bar */
+        .stats-bar {
+            display: flex;
+            gap: 24px;
+            flex-wrap: wrap;
+        }
+
+        .stat {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+        }
+
+        .stat-value {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .stat-label {
+            font-size: 11px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+        }
+
+        /* Main layout */
+        .main {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 24px;
+            display: grid;
+            grid-template-columns: 1fr 400px;
+            gap: 24px;
+        }
+
+        @media (max-width: 1024px) {
+            .main {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Timeline */
+        .timeline-container {
+            background-color: var(--bg-secondary);
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            overflow: hidden;
+        }
+
+        .timeline-header {
+            padding: 16px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .timeline-header h2 {
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .timeline-controls {
+            display: flex;
+            gap: 8px;
+        }
+
+        .btn {
+            background-color: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .btn:hover {
+            background-color: var(--bg-hover);
+        }
+
+        .btn-error {
+            background-color: rgba(241, 76, 76, 0.2);
+            border-color: var(--error);
+            color: var(--error);
+        }
+
+        .timeline-list {
+            max-height: calc(100vh - 300px);
+            overflow-y: auto;
+        }
+
+        .step-item {
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border-color);
+            cursor: pointer;
+            transition: background-color 0.2s;
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+        }
+
+        .step-item:hover {
+            background-color: var(--bg-hover);
+        }
+
+        .step-item.selected {
+            background-color: var(--bg-tertiary);
+            border-left: 3px solid var(--accent-blue);
+        }
+
+        .step-item.has-error {
+            border-left: 3px solid var(--error);
+        }
+
+        .step-number {
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 12px;
+            color: var(--text-muted);
+            min-width: 24px;
+        }
+
+        .step-icon {
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+        }
+
+        .step-icon.llm { color: var(--accent-purple); }
+        .step-icon.tool { color: var(--accent-blue); }
+        .step-icon.error { color: var(--error); }
+        .step-icon.chain { color: var(--accent-yellow); }
+        .step-icon.agent { color: var(--accent-green); }
+
+        .step-content {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .step-title {
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--text-primary);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .step-subtitle {
+            font-size: 11px;
+            color: var(--text-muted);
+            margin-top: 2px;
+        }
+
+        .step-error-preview {
+            font-size: 11px;
+            color: var(--error);
+            margin-top: 4px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .step-meta {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .step-duration {
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+
+        .step-status {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+        }
+
+        .step-status.success { background-color: var(--success); }
+        .step-status.error { background-color: var(--error); }
+
+        /* Sidebar */
+        .sidebar {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        /* Inspector panel */
+        .inspector {
+            background-color: var(--bg-secondary);
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            overflow: hidden;
+        }
+
+        .inspector-header {
+            padding: 16px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .inspector-header h3 {
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .inspector-tabs {
+            display: flex;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .inspector-tab {
+            padding: 10px 16px;
+            font-size: 12px;
+            color: var(--text-secondary);
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s;
+        }
+
+        .inspector-tab:hover {
+            color: var(--text-primary);
+            background-color: var(--bg-hover);
+        }
+
+        .inspector-tab.active {
+            color: var(--accent-blue);
+            border-bottom-color: var(--accent-blue);
+        }
+
+        .inspector-content {
+            padding: 16px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .inspector-empty {
+            color: var(--text-muted);
+            text-align: center;
+            padding: 32px;
+            font-size: 13px;
+        }
+
+        /* Error panel */
+        .error-panel {
+            background-color: var(--bg-secondary);
+            border-radius: 8px;
+            border: 1px solid var(--error);
+            overflow: hidden;
+        }
+
+        .error-panel-header {
+            padding: 12px 16px;
+            background-color: rgba(241, 76, 76, 0.1);
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .error-panel-header h3 {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--error);
+        }
+
+        .error-type {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--error);
+            margin-bottom: 8px;
+        }
+
+        .error-message {
+            font-size: 13px;
+            color: var(--text-primary);
+            margin-bottom: 16px;
+            padding: 12px;
+            background-color: var(--bg-tertiary);
+            border-radius: 4px;
+        }
+
+        .traceback-container {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .traceback {
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            font-size: 12px;
+            line-height: 1.5;
+            background-color: var(--bg-primary);
+            padding: 16px;
+            border-radius: 4px;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        .traceback .line-file {
+            color: var(--accent-blue);
+        }
+
+        .traceback .line-code {
+            color: var(--text-secondary);
+        }
+
+        .traceback .line-error {
+            color: var(--error);
+            font-weight: 600;
+        }
+
+        /* Code blocks */
+        pre {
+            background-color: var(--bg-primary);
+            padding: 12px;
+            border-radius: 4px;
+            overflow-x: auto;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 12px;
+            line-height: 1.5;
+        }
+
+        .json-key { color: var(--accent-blue); }
+        .json-string { color: var(--accent-orange); }
+        .json-number { color: var(--accent-green); }
+        .json-boolean { color: var(--accent-purple); }
+        .json-null { color: var(--text-muted); }
+
+        /* Keyboard hints */
+        .keyboard-hints {
+            position: fixed;
+            bottom: 16px;
+            right: 16px;
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 12px 16px;
+            font-size: 11px;
+            color: var(--text-muted);
+            display: flex;
+            gap: 16px;
+        }
+
+        .keyboard-hint kbd {
+            background-color: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 3px;
+            padding: 2px 6px;
+            font-family: 'Consolas', monospace;
+            margin-right: 4px;
+        }
+
+        /* Copy button */
+        .copy-btn {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            padding: 4px 8px;
+            font-size: 11px;
+            transition: color 0.2s;
+        }
+
+        .copy-btn:hover {
+            color: var(--text-primary);
+        }
+
+        .copy-btn.copied {
+            color: var(--success);
+        }
+
+        /* Duration bar */
+        .duration-bar {
+            height: 3px;
+            background-color: var(--bg-tertiary);
+            border-radius: 2px;
+            margin-top: 6px;
+            overflow: hidden;
+        }
+
+        .duration-bar-fill {
+            height: 100%;
+            background-color: var(--accent-blue);
+            border-radius: 2px;
+        }
+
+        .duration-bar-fill.slow {
+            background-color: var(--warning);
+        }
+
+        .duration-bar-fill.error {
+            background-color: var(--error);
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: var(--bg-secondary);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--border-color);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--text-muted);
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="header-content">
+            <div class="header-left">
+                <span class="logo">ReAgent</span>
+                <span class="run-title" id="run-title"></span>
+                <span class="status-badge" id="status-badge"></span>
+                <span class="failure-category" id="failure-category" style="display: none;"></span>
+            </div>
+            <div class="stats-bar">
+                <div class="stat">
+                    <span class="stat-value" id="stat-steps">-</span>
+                    <span class="stat-label">Steps</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-value" id="stat-tokens">-</span>
+                    <span class="stat-label">Tokens</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-value" id="stat-cost">-</span>
+                    <span class="stat-label">Cost</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-value" id="stat-duration">-</span>
+                    <span class="stat-label">Duration</span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="main">
+        <div class="timeline-container">
+            <div class="timeline-header">
+                <h2>Execution Timeline</h2>
+                <div class="timeline-controls">
+                    <button class="btn" onclick="expandAll()">Expand All</button>
+                    <button class="btn" onclick="collapseAll()">Collapse All</button>
+                    <button class="btn btn-error" onclick="jumpToError()" id="jump-error-btn" style="display: none;">
+                        Jump to Error (e)
+                    </button>
+                </div>
+            </div>
+            <div class="timeline-list" id="timeline-list"></div>
+        </div>
+
+        <div class="sidebar">
+            <div class="error-panel" id="error-panel" style="display: none;">
+                <div class="error-panel-header">
+                    <h3>Error Details</h3>
+                    <button class="copy-btn" onclick="copyTraceback()">Copy</button>
+                </div>
+                <div style="padding: 16px;">
+                    <div class="error-type" id="error-type"></div>
+                    <div class="error-message" id="error-message"></div>
+                    <div class="traceback-container">
+                        <pre class="traceback" id="traceback"></pre>
+                    </div>
+                </div>
+            </div>
+
+            <div class="inspector" id="inspector">
+                <div class="inspector-header">
+                    <h3>Step Inspector</h3>
+                </div>
+                <div class="inspector-tabs">
+                    <div class="inspector-tab active" data-tab="details" onclick="switchTab('details')">Details</div>
+                    <div class="inspector-tab" data-tab="input" onclick="switchTab('input')">Input</div>
+                    <div class="inspector-tab" data-tab="output" onclick="switchTab('output')">Output</div>
+                    <div class="inspector-tab" data-tab="raw" onclick="switchTab('raw')">Raw</div>
+                </div>
+                <div class="inspector-content" id="inspector-content">
+                    <div class="inspector-empty">Select a step to view details</div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <div class="keyboard-hints">
+        <span class="keyboard-hint"><kbd>j</kbd> / <kbd>k</kbd> Navigate</span>
+        <span class="keyboard-hint"><kbd>e</kbd> Jump to error</span>
+        <span class="keyboard-hint"><kbd>Enter</kbd> Expand/collapse</span>
+    </div>
+
+    <script>
+        // Run data injected by export command
+        const runData = {{ RUN_DATA_JSON }};
+
+        // State
+        let selectedStepIndex = -1;
+        let currentTab = 'details';
+        let errorStepIndex = -1;
+
+        // Initialize
+        function init() {
+            renderHeader();
+            renderTimeline();
+            renderErrorPanel();
+            setupKeyboardNavigation();
+        }
+
+        function renderHeader() {
+            const meta = runData.metadata;
+
+            document.getElementById('run-title').textContent = meta.name || meta.run_id.substring(0, 8);
+
+            const badge = document.getElementById('status-badge');
+            badge.textContent = meta.status;
+            badge.className = 'status-badge status-' + meta.status;
+
+            if (meta.failure_category) {
+                const cat = document.getElementById('failure-category');
+                cat.textContent = meta.failure_category;
+                cat.style.display = 'inline';
+            }
+
+            document.getElementById('stat-steps').textContent = meta.steps?.total || runData.steps.length;
+            document.getElementById('stat-tokens').textContent = formatNumber(meta.tokens?.total_tokens || 0);
+            document.getElementById('stat-cost').textContent = '$' + (meta.cost?.total_usd || 0).toFixed(4);
+            document.getElementById('stat-duration').textContent = formatDuration(meta.duration_ms);
+
+            document.title = `ReAgent - ${meta.name || meta.run_id.substring(0, 8)}`;
+        }
+
+        function renderTimeline() {
+            const list = document.getElementById('timeline-list');
+            list.innerHTML = '';
+
+            // Calculate max duration for scaling
+            const maxDuration = Math.max(...runData.steps.map(s => s.duration_ms || 0), 1);
+
+            runData.steps.forEach((step, index) => {
+                const hasError = stepHasError(step);
+                if (hasError && errorStepIndex === -1) {
+                    errorStepIndex = index;
+                }
+
+                const item = document.createElement('div');
+                item.className = 'step-item' + (hasError ? ' has-error' : '');
+                item.dataset.index = index;
+                item.onclick = () => selectStep(index);
+
+                const icon = getStepIcon(step.step_type);
+                const duration = step.duration_ms;
+                const durationPct = Math.min((duration || 0) / maxDuration * 100, 100);
+
+                item.innerHTML = `
+                    <span class="step-number">#${step.step_number}</span>
+                    <span class="step-icon ${step.step_type}">${icon}</span>
+                    <div class="step-content">
+                        <div class="step-title">${getStepTitle(step)}</div>
+                        <div class="step-subtitle">${getStepSubtitle(step)}</div>
+                        ${hasError ? `<div class="step-error-preview">${getErrorPreview(step)}</div>` : ''}
+                        <div class="duration-bar">
+                            <div class="duration-bar-fill${hasError ? ' error' : (duration > 5000 ? ' slow' : '')}" style="width: ${durationPct}%"></div>
+                        </div>
+                    </div>
+                    <div class="step-meta">
+                        <span class="step-duration">${formatDuration(duration)}</span>
+                        <span class="step-status ${hasError ? 'error' : 'success'}"></span>
+                    </div>
+                `;
+
+                list.appendChild(item);
+            });
+
+            // Show jump to error button if there's an error
+            if (errorStepIndex !== -1) {
+                document.getElementById('jump-error-btn').style.display = 'inline-flex';
+            }
+        }
+
+        function renderErrorPanel() {
+            // Find first ErrorStep with traceback
+            let errorStep = null;
+            for (const step of runData.steps) {
+                if (step.step_type === 'error' && step.error_traceback) {
+                    errorStep = step;
+                    break;
+                }
+            }
+
+            // Fallback to run-level error
+            const meta = runData.metadata;
+
+            if (errorStep || meta.error) {
+                document.getElementById('error-panel').style.display = 'block';
+                document.getElementById('error-type').textContent = errorStep?.error_type || meta.error_type || 'Error';
+                document.getElementById('error-message').textContent = errorStep?.error_message || meta.error;
+
+                if (errorStep?.error_traceback) {
+                    document.getElementById('traceback').innerHTML = formatTraceback(errorStep.error_traceback);
+                } else {
+                    document.getElementById('traceback').textContent = 'No traceback available';
+                }
+            }
+        }
+
+        function selectStep(index) {
+            // Update selection
+            document.querySelectorAll('.step-item').forEach((item, i) => {
+                item.classList.toggle('selected', i === index);
+            });
+
+            selectedStepIndex = index;
+            renderInspector(runData.steps[index]);
+
+            // Scroll into view
+            const item = document.querySelector(`.step-item[data-index="${index}"]`);
+            if (item) {
+                item.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+        }
+
+        function renderInspector(step) {
+            const content = document.getElementById('inspector-content');
+
+            if (!step) {
+                content.innerHTML = '<div class="inspector-empty">Select a step to view details</div>';
+                return;
+            }
+
+            switch (currentTab) {
+                case 'details':
+                    content.innerHTML = renderDetails(step);
+                    break;
+                case 'input':
+                    content.innerHTML = renderInput(step);
+                    break;
+                case 'output':
+                    content.innerHTML = renderOutput(step);
+                    break;
+                case 'raw':
+                    content.innerHTML = `<pre>${formatJSON(step)}</pre>`;
+                    break;
+            }
+        }
+
+        function renderDetails(step) {
+            let html = '<div style="display: flex; flex-direction: column; gap: 8px;">';
+
+            html += `<div><strong>Type:</strong> ${step.step_type}</div>`;
+            html += `<div><strong>Step #:</strong> ${step.step_number}</div>`;
+            html += `<div><strong>Duration:</strong> ${formatDuration(step.duration_ms)}</div>`;
+
+            if (step.model) {
+                html += `<div><strong>Model:</strong> ${step.model}</div>`;
+            }
+            if (step.tool_name) {
+                html += `<div><strong>Tool:</strong> ${step.tool_name}</div>`;
+            }
+            if (step.chain_name) {
+                html += `<div><strong>Chain:</strong> ${step.chain_name}</div>`;
+            }
+            if (step.token_usage) {
+                html += `<div><strong>Tokens:</strong> ${step.token_usage.prompt_tokens} + ${step.token_usage.completion_tokens} = ${step.token_usage.total_tokens}</div>`;
+            }
+            if (step.cost_usd) {
+                html += `<div><strong>Cost:</strong> $${step.cost_usd.toFixed(4)}</div>`;
+            }
+            if (step.error || step.error_message) {
+                html += `<div style="color: var(--error);"><strong>Error:</strong> ${step.error || step.error_message}</div>`;
+            }
+
+            html += '</div>';
+            return html;
+        }
+
+        function renderInput(step) {
+            if (step.step_type === 'llm_call') {
+                if (step.prompt) {
+                    return `<pre>${escapeHtml(step.prompt)}</pre>`;
+                }
+                if (step.messages) {
+                    return `<pre>${formatJSON(step.messages)}</pre>`;
+                }
+            }
+            if (step.step_type === 'tool_call' && step.input) {
+                return `<pre>${formatJSON(step.input)}</pre>`;
+            }
+            if (step.input) {
+                return `<pre>${formatJSON(step.input)}</pre>`;
+            }
+            return '<div class="inspector-empty">No input data</div>';
+        }
+
+        function renderOutput(step) {
+            if (step.step_type === 'llm_call' && step.response) {
+                return `<pre>${escapeHtml(step.response)}</pre>`;
+            }
+            if (step.step_type === 'tool_call' && step.output) {
+                return `<pre>${formatJSON(step.output)}</pre>`;
+            }
+            if (step.output) {
+                return `<pre>${formatJSON(step.output)}</pre>`;
+            }
+            if (step.error || step.error_message) {
+                return `<div style="color: var(--error);">${step.error || step.error_message}</div>`;
+            }
+            return '<div class="inspector-empty">No output data</div>';
+        }
+
+        function switchTab(tab) {
+            currentTab = tab;
+
+            document.querySelectorAll('.inspector-tab').forEach(t => {
+                t.classList.toggle('active', t.dataset.tab === tab);
+            });
+
+            if (selectedStepIndex >= 0) {
+                renderInspector(runData.steps[selectedStepIndex]);
+            }
+        }
+
+        function jumpToError() {
+            if (errorStepIndex >= 0) {
+                selectStep(errorStepIndex);
+            }
+        }
+
+        function expandAll() {
+            // For future expansion functionality
+        }
+
+        function collapseAll() {
+            // For future collapse functionality
+        }
+
+        function copyTraceback() {
+            const traceback = document.getElementById('traceback').textContent;
+            navigator.clipboard.writeText(traceback).then(() => {
+                const btn = document.querySelector('.error-panel .copy-btn');
+                btn.textContent = 'Copied!';
+                btn.classList.add('copied');
+                setTimeout(() => {
+                    btn.textContent = 'Copy';
+                    btn.classList.remove('copied');
+                }, 2000);
+            });
+        }
+
+        function setupKeyboardNavigation() {
+            document.addEventListener('keydown', (e) => {
+                if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+                switch (e.key) {
+                    case 'j':
+                    case 'ArrowDown':
+                        e.preventDefault();
+                        if (selectedStepIndex < runData.steps.length - 1) {
+                            selectStep(selectedStepIndex + 1);
+                        }
+                        break;
+                    case 'k':
+                    case 'ArrowUp':
+                        e.preventDefault();
+                        if (selectedStepIndex > 0) {
+                            selectStep(selectedStepIndex - 1);
+                        }
+                        break;
+                    case 'e':
+                        e.preventDefault();
+                        jumpToError();
+                        break;
+                    case 'Enter':
+                        // Toggle expansion (future)
+                        break;
+                }
+            });
+        }
+
+        // Helpers
+        function stepHasError(step) {
+            if (step.step_type === 'error') return true;
+            if (step.error || step.error_message) return true;
+            if (step.output?.error) return true;
+            if (step.success === false) return true;
+            return false;
+        }
+
+        function getStepIcon(type) {
+            const icons = {
+                'llm_call': 'AI',
+                'tool_call': 'T',
+                'error': '!',
+                'chain': 'C',
+                'agent': 'A',
+                'retrieval': 'R',
+                'reasoning': 'R',
+                'custom': '*'
+            };
+            return icons[type] || '?';
+        }
+
+        function getStepTitle(step) {
+            switch (step.step_type) {
+                case 'llm_call':
+                    return `LLM Call (${step.model || 'unknown'})`;
+                case 'tool_call':
+                    return `Tool: ${step.tool_name}`;
+                case 'error':
+                    return `Error: ${step.error_type}`;
+                case 'chain':
+                    return `Chain: ${step.chain_name}`;
+                case 'agent':
+                    return `Agent: ${step.action || step.agent_name || 'action'}`;
+                case 'retrieval':
+                    return `Retrieval: ${step.index_name || 'search'}`;
+                default:
+                    return step.step_type;
+            }
+        }
+
+        function getStepSubtitle(step) {
+            if (step.step_type === 'llm_call' && step.token_usage) {
+                return `${step.token_usage.total_tokens} tokens`;
+            }
+            if (step.step_type === 'tool_call') {
+                return step.success ? 'Success' : 'Failed';
+            }
+            return '';
+        }
+
+        function getErrorPreview(step) {
+            if (step.error_message) return truncate(step.error_message, 50);
+            if (step.error) return truncate(step.error, 50);
+            if (step.output?.error) return truncate(step.output.error, 50);
+            return 'Error';
+        }
+
+        function formatDuration(ms) {
+            if (!ms) return '-';
+            if (ms < 1000) return ms + 'ms';
+            if (ms < 60000) return (ms / 1000).toFixed(1) + 's';
+            return (ms / 60000).toFixed(1) + 'm';
+        }
+
+        function formatNumber(n) {
+            return n.toLocaleString();
+        }
+
+        function formatJSON(obj) {
+            const json = JSON.stringify(obj, null, 2);
+            return json.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, (match) => {
+                let cls = 'json-number';
+                if (/^"/.test(match)) {
+                    if (/:$/.test(match)) {
+                        cls = 'json-key';
+                        match = match.slice(0, -1);
+                        return `<span class="${cls}">${escapeHtml(match)}</span>:`;
+                    } else {
+                        cls = 'json-string';
+                    }
+                } else if (/true|false/.test(match)) {
+                    cls = 'json-boolean';
+                } else if (/null/.test(match)) {
+                    cls = 'json-null';
+                }
+                return `<span class="${cls}">${escapeHtml(match)}</span>`;
+            });
+        }
+
+        function formatTraceback(traceback) {
+            return traceback.split('\n').map(line => {
+                if (line.trim().startsWith('File ')) {
+                    return `<span class="line-file">${escapeHtml(line)}</span>`;
+                }
+                if (line.includes('Error:') || line.includes('Exception:')) {
+                    return `<span class="line-error">${escapeHtml(line)}</span>`;
+                }
+                if (line.startsWith('    ') && !line.trim().startsWith('File')) {
+                    return `<span class="line-code">${escapeHtml(line)}</span>`;
+                }
+                return escapeHtml(line);
+            }).join('\n');
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function truncate(text, max) {
+            if (!text) return '';
+            if (text.length <= max) return text;
+            return text.substring(0, max - 3) + '...';
+        }
+
+        // Initialize on load
+        init();
+    </script>
+</body>
+</html>
