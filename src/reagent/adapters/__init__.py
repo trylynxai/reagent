@@ -35,3 +35,9 @@ def get_llamaindex_adapter() -> type:
     """Get the LlamaIndex adapter (lazy import)."""
     from reagent.adapters.llamaindex import LlamaIndexAdapter
     return LlamaIndexAdapter
+
+
+def get_openai_agents_adapter() -> type:
+    """Get the OpenAI Agents SDK adapter (lazy import)."""
+    from reagent.adapters.openai_agents import OpenAIAgentsAdapter
+    return OpenAIAgentsAdapter
