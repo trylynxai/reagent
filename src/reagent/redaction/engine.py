@@ -43,6 +43,9 @@ class RedactionEngine:
         rules: RedactionRuleSet | None = None,
         timeout_ms: int = REDACTION_TIMEOUT_MS,
         use_nlp: bool = False,
+        nlp_entities: list[str] | None = None,
+        nlp_language: str = "en",
+        nlp_score_threshold: float = 0.0,
     ) -> None:
         """Initialize the redaction engine.
 
@@ -51,26 +54,46 @@ class RedactionEngine:
             rules: Redaction rules to apply
             timeout_ms: Timeout per field in milliseconds (ReDoS prevention)
             use_nlp: Whether to use NLP-based detection (requires presidio)
+            nlp_entities: Entity types to detect (None = all supported)
+            nlp_language: Language for NLP analysis
+            nlp_score_threshold: Minimum confidence score for NLP detections
         """
         self._patterns = patterns or DEFAULT_PATTERNS
         self._rules = rules or RedactionRuleSet()
         self._timeout_ms = timeout_ms
         self._use_nlp = use_nlp
-        self._nlp_analyzer = None
+        self._nlp_detector = None
+        self._nlp_score_threshold = nlp_score_threshold
 
         if use_nlp:
-            self._init_nlp()
-
-    def _init_nlp(self) -> None:
-        """Initialize NLP-based PII detection."""
-        try:
-            from presidio_analyzer import AnalyzerEngine
-            self._nlp_analyzer = AnalyzerEngine()
-        except ImportError:
-            raise RedactionError(
-                "Presidio is required for NLP-based PII detection. "
-                "Install with: pip install presidio-analyzer presidio-anonymizer"
+            self._init_nlp(
+                entities=nlp_entities,
+                language=nlp_language,
+                score_threshold=nlp_score_threshold,
             )
+
+    def _init_nlp(
+        self,
+        entities: list[str] | None = None,
+        language: str = "en",
+        score_threshold: float = 0.0,
+    ) -> None:
+        """Initialize NLP-based PII detection using NLPDetector.
+
+        Args:
+            entities: Entity types to detect (None = all).
+            language: Language for analysis.
+            score_threshold: Minimum confidence score for detections.
+        """
+        from reagent.redaction.nlp import NLPDetector
+
+        self._nlp_detector = NLPDetector(
+            entities=entities,
+            language=language,
+        )
+        self._nlp_score_threshold = score_threshold
+        # Trigger lazy init to fail fast if Presidio is missing
+        self._nlp_detector._lazy_init()
 
     def redact(self, text: str, field_name: str | None = None) -> RedactionResult:
         """Redact sensitive data from text.
@@ -142,11 +165,11 @@ class RedactionEngine:
                 })
 
         # Apply NLP-based detection if enabled
-        if self._use_nlp and self._nlp_analyzer:
-            nlp_results = self._apply_nlp_detection(redacted_text)
-            for nlp_result in nlp_results:
-                redacted_text = nlp_result["redacted_text"]
-                redactions.extend(nlp_result["redactions"])
+        if self._use_nlp and self._nlp_detector:
+            nlp_text, nlp_redactions = self._apply_nlp_detection(redacted_text)
+            if nlp_redactions:
+                redacted_text = nlp_text
+                redactions.extend(nlp_redactions)
 
         return RedactionResult(
             redacted_value=redacted_text,
@@ -195,60 +218,67 @@ class RedactionEngine:
 
         return result
 
-    def _apply_nlp_detection(self, text: str) -> list[dict[str, Any]]:
-        """Apply NLP-based PII detection using Presidio.
+    def _apply_nlp_detection(self, text: str) -> tuple[str, list[dict[str, Any]]]:
+        """Apply NLP-based PII detection using NLPDetector.
 
         Args:
             text: Text to analyze
 
         Returns:
-            List of detection results with redacted text
+            Tuple of (redacted_text, list of redaction metadata dicts).
         """
-        if not self._nlp_analyzer:
-            return []
+        if not self._nlp_detector:
+            return text, []
 
         try:
-            results = self._nlp_analyzer.analyze(
-                text=text,
-                language="en",
-            )
+            detections = self._nlp_detector.detect(text)
 
-            nlp_redactions = []
+            # Filter by score threshold
+            if self._nlp_score_threshold > 0:
+                detections = [
+                    d for d in detections
+                    if d["score"] >= self._nlp_score_threshold
+                ]
+
+            if not detections:
+                return text, []
+
+            nlp_redactions: list[dict[str, Any]] = []
             redacted_text = text
 
-            # Sort by start position in reverse
-            results = sorted(results, key=lambda x: x.start, reverse=True)
+            # Sort by start position in reverse to preserve offsets
+            detections = sorted(detections, key=lambda x: x["start"], reverse=True)
 
-            for result in results:
-                entity_type = result.entity_type.lower()
+            for detection in detections:
+                entity_type = detection["entity_type"].lower()
+                original = detection["text"]
+                start = detection["start"]
+                end = detection["end"]
+
                 rule = self._rules.get_rule(entity_type)
-                original = text[result.start:result.end]
                 replacement = rule.get_replacement(original, entity_type)
 
                 redacted_text = (
-                    redacted_text[:result.start]
+                    redacted_text[:start]
                     + replacement
-                    + redacted_text[result.end:]
+                    + redacted_text[end:]
                 )
 
                 nlp_redactions.append({
                     "pattern": f"nlp:{entity_type}",
                     "category": "pii",
-                    "start": result.start,
-                    "end": result.end,
+                    "start": start,
+                    "end": end,
                     "original_length": len(original),
                     "replacement": replacement,
-                    "confidence": result.score,
+                    "confidence": detection["score"],
                 })
 
-            return [{
-                "redacted_text": redacted_text,
-                "redactions": nlp_redactions,
-            }]
+            return redacted_text, nlp_redactions
 
         except Exception:
-            # NLP detection failed, return empty
-            return []
+            # NLP detection failed, return unchanged
+            return text, []
 
     def redact_dict(
         self,

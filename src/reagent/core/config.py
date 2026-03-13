@@ -67,6 +67,9 @@ class RedactionConfig(BaseModel):
     rules_file: str | None = None
     fields: list[str] = Field(default_factory=list)
     use_nlp: bool = False
+    nlp_entities: list[str] | None = None
+    nlp_language: str = "en"
+    nlp_score_threshold: float = Field(default=0.0, ge=0.0, le=1.0)
     timeout_ms: int = Field(default=10, ge=1, le=1000)
 
 

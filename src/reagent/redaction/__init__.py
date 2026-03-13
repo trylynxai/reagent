@@ -11,6 +11,7 @@ from reagent.redaction.patterns import (
 )
 from reagent.redaction.rules import RedactionRule, RedactionRuleSet
 from reagent.redaction.engine import RedactionEngine
+from reagent.redaction.nlp import NLPDetector, DEFAULT_ENTITIES
 
 __all__ = [
     "Pattern",
@@ -23,4 +24,6 @@ __all__ = [
     "RedactionRule",
     "RedactionRuleSet",
     "RedactionEngine",
+    "NLPDetector",
+    "DEFAULT_ENTITIES",
 ]

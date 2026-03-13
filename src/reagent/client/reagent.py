@@ -131,6 +131,9 @@ class ReAgent:
             rules=rules,
             timeout_ms=redaction_config.timeout_ms,
             use_nlp=redaction_config.use_nlp,
+            nlp_entities=redaction_config.nlp_entities,
+            nlp_language=redaction_config.nlp_language,
+            nlp_score_threshold=redaction_config.nlp_score_threshold,
         )
 
     def trace(
