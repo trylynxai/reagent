@@ -112,11 +112,17 @@ def search(
     """Search runs by query.
 
     Query syntax:
-    - model:gpt-4 - Filter by model
-    - status:failed - Filter by status
-    - cost>0.05 - Filter by cost
-    - "error text" - Full-text search
-    - project:myproject AND model:gpt-4 - Compound query
+    - model:gpt-4                               Filter by model
+    - status:failed                              Filter by status
+    - cost>0.05                                  Range query
+    - duration>10s tokens>1000 steps>5           Range queries
+    - tool:web_search                            Filter by tool used
+    - name:chatbot                               Filter by run name
+    - "error text"                               Full-text search
+    - project:myproject AND model:gpt-4          Compound AND
+    - status:failed OR status:cancelled          Compound OR
+    - (status:failed OR status:cancelled) AND cost>0.01  Grouping
+    - NOT model:gpt-3.5   or   -model:gpt-3.5   Negation
     """
     from reagent.cli.formatters import get_formatter
     from reagent.client.reagent import ReAgent

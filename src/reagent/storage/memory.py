@@ -227,6 +227,22 @@ class MemoryStorage(StorageBackend):
             if metadata.duration_ms is None or metadata.duration_ms > filters.max_duration_ms:
                 return False
 
+        # Token filters
+        if filters.min_tokens is not None:
+            if metadata.tokens.total_tokens < filters.min_tokens:
+                return False
+        if filters.max_tokens is not None:
+            if metadata.tokens.total_tokens > filters.max_tokens:
+                return False
+
+        # Step count filters
+        if filters.min_steps is not None:
+            if metadata.steps.total < filters.min_steps:
+                return False
+        if filters.max_steps is not None:
+            if metadata.steps.total > filters.max_steps:
+                return False
+
         # Error filter
         if filters.has_error is not None:
             has_error = metadata.error is not None
@@ -236,6 +252,27 @@ class MemoryStorage(StorageBackend):
         # Failure category filter
         if filters.failure_category:
             if metadata.failure_category != filters.failure_category:
+                return False
+
+        # Name filter (substring match)
+        if filters.name:
+            if not metadata.name or filters.name.lower() not in metadata.name.lower():
+                return False
+
+        # Framework filter
+        if filters.framework:
+            if metadata.framework != filters.framework:
+                return False
+
+        # Tool name filter (requires checking steps)
+        if filters.tool_name:
+            run_id = metadata.run_id
+            tool_found = False
+            for step in self._steps.get(run_id, []):
+                if hasattr(step, "tool_name") and step.tool_name == filters.tool_name:
+                    tool_found = True
+                    break
+            if not tool_found:
                 return False
 
         return True

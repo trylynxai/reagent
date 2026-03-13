@@ -341,6 +341,22 @@ class SQLiteStorage(StorageBackend):
             conditions.append("duration_ms <= ?")
             params.append(filters.max_duration_ms)
 
+        if filters.min_tokens is not None:
+            conditions.append("total_tokens >= ?")
+            params.append(filters.min_tokens)
+
+        if filters.max_tokens is not None:
+            conditions.append("total_tokens <= ?")
+            params.append(filters.max_tokens)
+
+        if filters.min_steps is not None:
+            conditions.append("step_count >= ?")
+            params.append(filters.min_steps)
+
+        if filters.max_steps is not None:
+            conditions.append("step_count <= ?")
+            params.append(filters.max_steps)
+
         if filters.has_error is True:
             conditions.append("error IS NOT NULL")
         elif filters.has_error is False:
@@ -349,6 +365,24 @@ class SQLiteStorage(StorageBackend):
         if filters.failure_category:
             conditions.append("failure_category = ?")
             params.append(filters.failure_category)
+
+        if filters.name:
+            conditions.append("name LIKE ?")
+            params.append(f"%{filters.name}%")
+
+        if filters.framework:
+            conditions.append(
+                "run_id IN (SELECT run_id FROM runs WHERE "
+                "custom_metadata LIKE ?)"
+            )
+            params.append(f'%"framework": "{filters.framework}"%')
+
+        if filters.tool_name:
+            conditions.append(
+                "run_id IN (SELECT DISTINCT run_id FROM steps WHERE "
+                "step_type = 'tool_call' AND data LIKE ?)"
+            )
+            params.append(f'%"tool_name": "{filters.tool_name}"%')
 
         if conditions:
             query += " WHERE " + " AND ".join(conditions)

@@ -18,6 +18,7 @@ class RunFilter(BaseModel):
     """Filter criteria for listing runs."""
 
     project: str | None = None
+    name: str | None = None
     status: Status | list[Status] | None = None
     model: str | None = None
     tags: list[str] | None = None
@@ -27,8 +28,14 @@ class RunFilter(BaseModel):
     max_cost_usd: float | None = None
     min_duration_ms: int | None = None
     max_duration_ms: int | None = None
+    min_tokens: int | None = None
+    max_tokens: int | None = None
+    min_steps: int | None = None
+    max_steps: int | None = None
     has_error: bool | None = None
     failure_category: str | None = None
+    framework: str | None = None
+    tool_name: str | None = None
     search_query: str | None = None
 
 
