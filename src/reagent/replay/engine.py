@@ -15,7 +15,7 @@ from reagent.replay.loader import TraceLoader
 from reagent.replay.sandbox import Sandbox
 from reagent.replay.session import ReplaySession, StepResult
 from reagent.schema.run import Run
-from reagent.schema.steps import AnyStep, LLMCallStep, ToolCallStep, ChainStep, AgentStep, RetrievalStep
+from reagent.schema.steps import AnyStep, LLMCallStep, ToolCallStep, ChainStep, AgentStep, RetrievalStep, CheckpointStep
 from reagent.storage.base import StorageBackend
 
 
@@ -366,6 +366,15 @@ class ReplayEngine:
                     step, original_output, replay_output, session
                 )
 
+            # Record checkpoint state for drift analysis
+            if isinstance(step, CheckpointStep):
+                session.record_checkpoint_state(
+                    step_number=step.step_number,
+                    checkpoint_name=step.checkpoint_name,
+                    state_hash=step.state_hash,
+                    state_data=step.state_data,
+                )
+
             return StepResult(
                 step_number=step.step_number,
                 step_type=step.step_type,
@@ -478,6 +487,59 @@ class ReplayEngine:
             return None
         else:
             return getattr(step, "output", None) or getattr(step, "result", None)
+
+    def replay_with_drift_detection(
+        self,
+        run_id: UUID | str,
+        drift_config: Any | None = None,
+        **replay_kwargs: Any,
+    ) -> tuple[ReplaySession, Any]:
+        """Replay a run and return both the session and a drift report.
+
+        Args:
+            run_id: Run to replay.
+            drift_config: Optional DriftConfig for tolerance settings.
+            **replay_kwargs: Additional arguments passed to replay().
+
+        Returns:
+            Tuple of (ReplaySession, DriftReport).
+        """
+        from reagent.analysis.drift import DriftDetector, DriftConfig
+
+        if isinstance(run_id, str):
+            run_id = UUID(run_id)
+
+        session = self.replay(run_id, **replay_kwargs)
+        original_run = self._loader.load_full(run_id)
+
+        # Build replay CheckpointSteps from session data
+        original_checkpoints = [
+            s for s in original_run.steps
+            if isinstance(s, CheckpointStep)
+        ]
+
+        replay_checkpoint_steps = []
+        for cp_data in session.replay_checkpoints:
+            replay_checkpoint_steps.append(
+                CheckpointStep(
+                    run_id=run_id,
+                    step_number=cp_data["step_number"],
+                    timestamp_start=original_run.metadata.start_time,
+                    checkpoint_name=cp_data["checkpoint_name"],
+                    state_hash=cp_data["state_hash"],
+                    state_data=cp_data["state_data"],
+                )
+            )
+
+        config = drift_config if isinstance(drift_config, DriftConfig) else DriftConfig()
+        detector = DriftDetector(config)
+        report = detector.analyze(
+            original_checkpoints,
+            replay_checkpoint_steps,
+            original_run_id=run_id,
+            replay_run_id=run_id,
+        )
+        return session, report
 
     def get_step(self, run_id: UUID | str, step_number: int) -> AnyStep | None:
         """Get a specific step from a run.

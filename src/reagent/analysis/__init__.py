@@ -9,6 +9,12 @@ from reagent.analysis.loop_detector import (
     LoopPattern,
     LoopDetectionResult,
 )
+from reagent.analysis.drift import (
+    DriftDetector,
+    DriftConfig,
+    CheckpointDrift,
+    DriftReport,
+)
 
 __all__ = [
     "TraceDiff",
@@ -24,4 +30,8 @@ __all__ = [
     "LoopConfig",
     "LoopPattern",
     "LoopDetectionResult",
+    "DriftDetector",
+    "DriftConfig",
+    "CheckpointDrift",
+    "DriftReport",
 ]

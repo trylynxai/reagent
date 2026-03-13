@@ -72,6 +72,7 @@ class ReplaySession:
         self._checkpoints: list[Checkpoint] = []
         self._breakpoints: set[int] = set()
         self._state: dict[str, Any] = {}
+        self._replay_checkpoints: list[dict[str, Any]] = []
 
         self._started_at: datetime | None = None
         self._ended_at: datetime | None = None
@@ -198,6 +199,33 @@ class ReplaySession:
             True if breakpoint is set
         """
         return step_number in self._breakpoints
+
+    def record_checkpoint_state(
+        self,
+        step_number: int,
+        checkpoint_name: str | None,
+        state_hash: str,
+        state_data: dict[str, Any] | None = None,
+    ) -> None:
+        """Record checkpoint state during replay for drift analysis.
+
+        Args:
+            step_number: Step number of the checkpoint.
+            checkpoint_name: Optional checkpoint name.
+            state_hash: Hash of the checkpoint state.
+            state_data: Optional full state data.
+        """
+        self._replay_checkpoints.append({
+            "step_number": step_number,
+            "checkpoint_name": checkpoint_name,
+            "state_hash": state_hash,
+            "state_data": state_data,
+        })
+
+    @property
+    def replay_checkpoints(self) -> list[dict[str, Any]]:
+        """Get recorded checkpoint states from this replay session."""
+        return self._replay_checkpoints.copy()
 
     def set_state(self, key: str, value: Any) -> None:
         """Set a state value.
