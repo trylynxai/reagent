@@ -20,11 +20,20 @@ def export_run(
         "json",
         "--format",
         "-f",
-        help="Export format: json, markdown, html, otlp",
+        help="Export format: json, markdown, html, otlp, langfuse",
     ),
     include_raw: bool = typer.Option(False, "--raw", help="Include raw request/response data"),
     endpoint: Optional[str] = typer.Option(
         None, "--endpoint", help="OTLP collector endpoint for live export"
+    ),
+    langfuse_public_key: Optional[str] = typer.Option(
+        None, "--langfuse-public-key", help="Langfuse public key for live export"
+    ),
+    langfuse_secret_key: Optional[str] = typer.Option(
+        None, "--langfuse-secret-key", help="Langfuse secret key for live export"
+    ),
+    langfuse_host: Optional[str] = typer.Option(
+        None, "--langfuse-host", help="Langfuse host URL (default: https://cloud.langfuse.com)"
     ),
 ) -> None:
     """Export a run to a file.
@@ -34,6 +43,7 @@ def export_run(
     - markdown: Markdown documentation
     - html: Self-contained HTML report
     - otlp: OpenTelemetry protobuf JSON (file or live export)
+    - langfuse: Langfuse trace JSON (file or live export)
 
     Examples:
         reagent export abc123 -o trace.json
@@ -41,6 +51,8 @@ def export_run(
         reagent export abc123 -f html -o report.html
         reagent export abc123 -f otlp -o trace.otlp.json
         reagent export abc123 -f otlp --endpoint http://localhost:4318/v1/traces
+        reagent export abc123 -f langfuse -o trace.langfuse.json
+        reagent export abc123 -f langfuse --langfuse-public-key pk-... --langfuse-secret-key sk-...
     """
     import json
     from reagent.client.reagent import ReAgent
@@ -64,6 +76,19 @@ def export_run(
                 console.print(f"[green]Exported to OTLP endpoint: {endpoint}[/green]")
                 return
             content = _export_otlp(run)
+        elif format == "langfuse":
+            if langfuse_public_key and langfuse_secret_key:
+                from reagent.export.langfuse import export_langfuse_live
+
+                export_langfuse_live(
+                    run,
+                    public_key=langfuse_public_key,
+                    secret_key=langfuse_secret_key,
+                    host=langfuse_host or "https://cloud.langfuse.com",
+                )
+                console.print(f"[green]Exported to Langfuse: {langfuse_host or 'https://cloud.langfuse.com'}[/green]")
+                return
+            content = _export_langfuse(run)
         else:
             err_console.print(f"[red]Unknown format: {format}[/red]")
             raise typer.Exit(1)
@@ -281,3 +306,13 @@ def _export_otlp(run: "Run") -> str:
 
     data = run_to_otlp_json(run)
     return json.dumps(data, indent=2)
+
+
+def _export_langfuse(run: "Run") -> str:
+    """Export run as Langfuse trace JSON."""
+    import json
+
+    from reagent.export.langfuse import run_to_langfuse_json
+
+    data = run_to_langfuse_json(run)
+    return json.dumps(data, indent=2, default=str)

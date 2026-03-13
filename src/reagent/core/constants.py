@@ -172,6 +172,9 @@ class OutputFormat(str, Enum):
     # OpenTelemetry (OTLP) protobuf JSON
     OTLP = "otlp"
 
+    # Langfuse trace JSON
+    LANGFUSE = "langfuse"
+
 
 # Default values
 DEFAULT_BUFFER_SIZE = 10_000
