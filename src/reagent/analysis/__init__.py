@@ -15,6 +15,13 @@ from reagent.analysis.drift import (
     CheckpointDrift,
     DriftReport,
 )
+from reagent.analysis.ordering import (
+    AsyncOrderAnalyzer,
+    OrderingConfig,
+    OrderingResult,
+    ConcurrencyGroup,
+    StepDependency,
+)
 
 __all__ = [
     "TraceDiff",
@@ -34,4 +41,9 @@ __all__ = [
     "DriftConfig",
     "CheckpointDrift",
     "DriftReport",
+    "AsyncOrderAnalyzer",
+    "OrderingConfig",
+    "OrderingResult",
+    "ConcurrencyGroup",
+    "StepDependency",
 ]
