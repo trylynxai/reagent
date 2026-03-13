@@ -48,10 +48,16 @@ dependencies = [
 langchain = ["langchain>=0.1.0"]
 openai = ["openai>=1.0.0"]
 nlp = ["presidio-analyzer>=2.0.0", "presidio-anonymizer>=2.0.0"]
+otlp = [
+    "opentelemetry-api>=1.20.0",
+    "opentelemetry-sdk>=1.20.0",
+    "opentelemetry-exporter-otlp-proto-http>=1.20.0",
+]
 all = [
     "reagent[langchain]",
     "reagent[openai]",
     "reagent[nlp]",
+    "reagent[otlp]",
 ]
 dev = [
     "pytest>=7.0.0",

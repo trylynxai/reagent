@@ -20,9 +20,12 @@ def export_run(
         "json",
         "--format",
         "-f",
-        help="Export format: json, markdown, html",
+        help="Export format: json, markdown, html, otlp",
     ),
     include_raw: bool = typer.Option(False, "--raw", help="Include raw request/response data"),
+    endpoint: Optional[str] = typer.Option(
+        None, "--endpoint", help="OTLP collector endpoint for live export"
+    ),
 ) -> None:
     """Export a run to a file.
 
@@ -30,11 +33,14 @@ def export_run(
     - json: Full JSON export
     - markdown: Markdown documentation
     - html: Self-contained HTML report
+    - otlp: OpenTelemetry protobuf JSON (file or live export)
 
     Examples:
         reagent export abc123 -o trace.json
         reagent export abc123 -f markdown -o trace.md
         reagent export abc123 -f html -o report.html
+        reagent export abc123 -f otlp -o trace.otlp.json
+        reagent export abc123 -f otlp --endpoint http://localhost:4318/v1/traces
     """
     import json
     from reagent.client.reagent import ReAgent
@@ -50,6 +56,14 @@ def export_run(
             content = _export_markdown(run)
         elif format == "html":
             content = _export_html(run)
+        elif format == "otlp":
+            if endpoint:
+                from reagent.export.otlp import export_otlp_live
+
+                export_otlp_live(run, endpoint)
+                console.print(f"[green]Exported to OTLP endpoint: {endpoint}[/green]")
+                return
+            content = _export_otlp(run)
         else:
             err_console.print(f"[red]Unknown format: {format}[/red]")
             raise typer.Exit(1)
@@ -257,3 +271,13 @@ def _export_html(run: "Run") -> str:
 </html>
 """
     return html
+
+
+def _export_otlp(run: "Run") -> str:
+    """Export run as OTLP protobuf JSON."""
+    import json
+
+    from reagent.export.otlp import run_to_otlp_json
+
+    data = run_to_otlp_json(run)
+    return json.dumps(data, indent=2)

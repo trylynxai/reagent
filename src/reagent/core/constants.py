@@ -169,6 +169,9 @@ class OutputFormat(str, Enum):
     # Self-contained HTML report
     HTML = "html"
 
+    # OpenTelemetry (OTLP) protobuf JSON
+    OTLP = "otlp"
+
 
 # Default values
 DEFAULT_BUFFER_SIZE = 10_000
