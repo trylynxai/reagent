@@ -20,7 +20,12 @@ def export_run(
         "json",
         "--format",
         "-f",
-        help="Export format: json, markdown, html, otlp, langfuse",
+        help="Export format: json, markdown, html, otlp, langfuse, csv",
+    ),
+    csv_mode: str = typer.Option(
+        "steps",
+        "--csv-mode",
+        help="CSV export mode: runs (summary) or steps (detail)",
     ),
     include_raw: bool = typer.Option(False, "--raw", help="Include raw request/response data"),
     endpoint: Optional[str] = typer.Option(
@@ -44,6 +49,7 @@ def export_run(
     - html: Self-contained HTML report
     - otlp: OpenTelemetry protobuf JSON (file or live export)
     - langfuse: Langfuse trace JSON (file or live export)
+    - csv: Tabular CSV export (use --csv-mode for runs/steps)
 
     Examples:
         reagent export abc123 -o trace.json
@@ -53,6 +59,8 @@ def export_run(
         reagent export abc123 -f otlp --endpoint http://localhost:4318/v1/traces
         reagent export abc123 -f langfuse -o trace.langfuse.json
         reagent export abc123 -f langfuse --langfuse-public-key pk-... --langfuse-secret-key sk-...
+        reagent export abc123 -f csv -o steps.csv
+        reagent export abc123 -f csv --csv-mode runs -o summary.csv
     """
     import json
     from reagent.client.reagent import ReAgent
@@ -89,6 +97,8 @@ def export_run(
                 console.print(f"[green]Exported to Langfuse: {langfuse_host or 'https://cloud.langfuse.com'}[/green]")
                 return
             content = _export_langfuse(run)
+        elif format == "csv":
+            content = _export_csv(run, csv_mode)
         else:
             err_console.print(f"[red]Unknown format: {format}[/red]")
             raise typer.Exit(1)
@@ -316,3 +326,10 @@ def _export_langfuse(run: "Run") -> str:
 
     data = run_to_langfuse_json(run)
     return json.dumps(data, indent=2, default=str)
+
+
+def _export_csv(run: "Run", mode: str = "steps") -> str:
+    """Export run as CSV."""
+    from reagent.export.csv import run_to_csv
+
+    return run_to_csv(run, mode=mode)

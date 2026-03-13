@@ -183,6 +183,9 @@ class OutputFormat(str, Enum):
     # Langfuse trace JSON
     LANGFUSE = "langfuse"
 
+    # Tabular CSV export
+    CSV = "csv"
+
 
 # Default values
 DEFAULT_BUFFER_SIZE = 10_000
