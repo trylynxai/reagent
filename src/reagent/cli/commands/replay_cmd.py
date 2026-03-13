@@ -88,23 +88,29 @@ def _interactive_replay(
 ) -> None:
     """Run interactive replay debugger."""
     from reagent.cli.debugger import ReplayDebugger
+    from reagent.cli.history import CommandHistory
 
-    debugger = ReplayDebugger(engine, run_id)
+    history = CommandHistory()
+    history.load()
+
+    debugger = ReplayDebugger(engine, run_id, history=history)
 
     # Start replay (prints banner)
     debugger.start(from_step=from_step, to_step=to_step)
 
     console.print()
     console.print("[dim]Type 'help' for commands, 'step' to advance[/dim]")
+    if history.enabled:
+        console.print("[dim]Arrow keys navigate history, Ctrl+R to search[/dim]")
     console.print()
 
-    # Enter REPL
+    # Enter REPL — use input() so readline provides arrow-key history
     while not debugger.is_finished:
         try:
             prompt = debugger.get_prompt()
-            cmd = Prompt.ask(prompt)
+            cmd = input(f"{prompt}> ")
 
-            if not cmd:
+            if not cmd.strip():
                 continue
 
             debugger.execute_command(cmd)
@@ -114,4 +120,6 @@ def _interactive_replay(
         except EOFError:
             break
 
+    # Persist history to disk
+    history.save()
     console.print("[green]Replay session ended.[/green]")

@@ -14,6 +14,7 @@ from rich.syntax import Syntax
 from rich.table import Table
 from rich.text import Text
 
+from reagent.cli.history import CommandHistory
 from reagent.replay.engine import ReplayEngine
 from reagent.replay.session import ReplaySession
 from reagent.schema.steps import (
@@ -70,11 +71,18 @@ class ReplayDebugger:
     - list (l)          List all steps with status
     - goto N            Jump to step N
     - diff              Show divergences from original
+    - history [N]       Show command history (last N or search)
+    - !N                Re-execute history entry N
     - help (h)          Show help
     - exit (q)          Quit replay
     """
 
-    def __init__(self, engine: ReplayEngine, run_id: str) -> None:
+    def __init__(
+        self,
+        engine: ReplayEngine,
+        run_id: str,
+        history: CommandHistory | None = None,
+    ) -> None:
         self._engine = engine
         self._run_id = run_id
         self._console = Console()
@@ -86,6 +94,7 @@ class ReplayDebugger:
         self._finished = False
         self._watches: dict[str, str] = {}  # name -> jmespath-like expression
         self._run = None
+        self._history = history or CommandHistory()
 
     @property
     def is_finished(self) -> bool:
@@ -144,6 +153,11 @@ class ReplayDebugger:
         command = parts[0].lower()
         args = parts[1] if len(parts) > 1 else ""
 
+        # Handle !N history re-execution
+        if command.startswith("!"):
+            self._cmd_history_exec(command[1:])
+            return
+
         handlers = {
             "step": self._cmd_step,
             "s": self._cmd_step,
@@ -164,6 +178,7 @@ class ReplayDebugger:
             "l": self._cmd_list,
             "goto": self._cmd_goto,
             "diff": self._cmd_diff,
+            "history": self._cmd_history,
             "help": self._cmd_help,
             "h": self._cmd_help,
             "exit": self._cmd_exit,
@@ -479,6 +494,64 @@ class ReplayDebugger:
 
         self._console.print(table)
 
+    def _cmd_history(self, args: str) -> None:
+        """Show, search, or limit command history."""
+        args = args.strip()
+
+        if args.startswith("search "):
+            query = args[7:].strip()
+            if not query:
+                self._console.print("[red]Usage: history search <query>[/red]")
+                return
+            results = self._history.search(query)
+            if not results:
+                self._console.print(f"[dim]No history matching '{query}'.[/dim]")
+                return
+            table = Table(title=f"History: '{query}'", show_header=True, box=None)
+            table.add_column("#", style="dim", width=6)
+            table.add_column("Command")
+            for idx, cmd in results[-20:]:
+                table.add_row(str(idx), cmd)
+            self._console.print(table)
+            return
+
+        # Show last N entries (default 20)
+        limit = 20
+        if args:
+            try:
+                limit = int(args)
+            except ValueError:
+                self._console.print("[red]Usage: history [N] | history search <query>[/red]")
+                return
+
+        entries = self._history.get_all(limit=limit)
+        if not entries:
+            self._console.print("[dim]No command history.[/dim]")
+            return
+
+        table = Table(title="Command History", show_header=True, box=None)
+        table.add_column("#", style="dim", width=6)
+        table.add_column("Command")
+        for idx, cmd in entries:
+            table.add_row(str(idx), cmd)
+        self._console.print(table)
+
+    def _cmd_history_exec(self, index_str: str) -> None:
+        """Re-execute a command from history by index."""
+        try:
+            index = int(index_str)
+        except ValueError:
+            self._console.print("[red]Usage: !<number>[/red]")
+            return
+
+        entry = self._history.get_entry(index)
+        if not entry:
+            self._console.print(f"[red]No history entry #{index}.[/red]")
+            return
+
+        self._console.print(f"[dim]> {entry}[/dim]")
+        self.execute_command(entry)
+
     def _cmd_help(self, args: str) -> None:
         """Show help."""
         help_table = Table(
@@ -504,6 +577,9 @@ class ReplayDebugger:
             ("list", "l", "List all steps with status markers"),
             ("goto N", "", "Jump to step N (restarts replay)"),
             ("diff", "", "Show divergences from original"),
+            ("history [N]", "", "Show last N commands (default 20)"),
+            ("history search <q>", "", "Search history for <q>"),
+            ("!N", "", "Re-execute history entry N"),
             ("help", "h", "Show this help"),
             ("exit", "q", "Quit debugger"),
         ]
