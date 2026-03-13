@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass, field
 from typing import Any, Callable, Iterator
 from uuid import UUID
@@ -9,11 +10,12 @@ from uuid import UUID
 from reagent.core.constants import ReplayMode
 from reagent.core.exceptions import ReplayError, TraceNotFoundError
 from reagent.replay.determinism import DeterminismController
+from reagent.replay.executor import ExecutorRegistry, ExecutionResult, execute_step
 from reagent.replay.loader import TraceLoader
 from reagent.replay.sandbox import Sandbox
 from reagent.replay.session import ReplaySession, StepResult
 from reagent.schema.run import Run
-from reagent.schema.steps import AnyStep, LLMCallStep, ToolCallStep
+from reagent.schema.steps import AnyStep, LLMCallStep, ToolCallStep, ChainStep, AgentStep, RetrievalStep
 from reagent.storage.base import StorageBackend
 
 
@@ -21,7 +23,7 @@ from reagent.storage.base import StorageBackend
 class StepOverrides:
     """Configuration for which steps to re-execute vs replay.
 
-    In partial replay mode, this controls which steps get
+    In partial/hybrid replay modes, this controls which steps get
     re-executed with real implementations vs replayed from
     recorded outputs.
     """
@@ -38,8 +40,11 @@ class StepOverrides:
     # Model names to re-execute
     rerun_models: set[str] = field(default_factory=set)
 
-    # Custom function replacements: step_type -> replacement function
-    patch_functions: dict[str, Callable[..., Any]] = field(default_factory=dict)
+    # Custom function replacements: step_number -> replacement function
+    patch_functions: dict[int, Callable[..., Any]] = field(default_factory=dict)
+
+    # Custom function replacements by step type
+    patch_by_type: dict[str, Callable[..., Any]] = field(default_factory=dict)
 
     def should_rerun(self, step: AnyStep) -> bool:
         """Check if a step should be re-executed.
@@ -66,10 +71,18 @@ class StepOverrides:
         if isinstance(step, LLMCallStep) and step.model in self.rerun_models:
             return True
 
+        # Check if a patch exists for this step
+        if step.step_number in self.patch_functions:
+            return True
+        if step.step_type in self.patch_by_type:
+            return True
+
         return False
 
     def get_patch(self, step: AnyStep) -> Callable[..., Any] | None:
         """Get patch function for a step.
+
+        Priority: step number > step type.
 
         Args:
             step: Step to get patch for
@@ -77,7 +90,15 @@ class StepOverrides:
         Returns:
             Patch function or None
         """
-        return self.patch_functions.get(step.step_type)
+        # Step-number-specific patch
+        if step.step_number in self.patch_functions:
+            return self.patch_functions[step.step_number]
+
+        # Type-level patch
+        if step.step_type in self.patch_by_type:
+            return self.patch_by_type[step.step_type]
+
+        return None
 
 
 class ReplayEngine:
@@ -85,9 +106,25 @@ class ReplayEngine:
 
     Supports multiple replay modes:
     - STRICT: Return exact recorded outputs, block external calls
-    - PARTIAL: Re-execute selected steps, replay others
+    - PARTIAL: Re-execute selected steps, replay others from recording
     - MOCK: Intercept external calls, return recorded responses
     - HYBRID: Configurable per step type
+
+    Partial replay usage:
+        engine = ReplayEngine(storage, mode=ReplayMode.PARTIAL)
+
+        # Register executors for steps that should run live
+        engine.executors.register_tool("web_search", my_search_fn)
+        engine.executors.register_llm("gpt-4", my_llm_fn)
+
+        # Specify which steps to re-run
+        overrides = StepOverrides(rerun_tools={"web_search"})
+        session = engine.replay(run_id, overrides=overrides)
+
+        # Check for divergence
+        for result in session.results:
+            if result.diverged:
+                print(f"Step {result.step_number} diverged: {result.divergence_details}")
     """
 
     def __init__(
@@ -113,6 +150,7 @@ class ReplayEngine:
 
         self._determinism = DeterminismController()
         self._sandbox = Sandbox(strict=sandbox_strict)
+        self.executors = ExecutorRegistry()
 
     def replay(
         self,
@@ -154,8 +192,15 @@ class ReplayEngine:
 
         try:
             # Activate sandbox for strict/mock modes
+            # Partial mode does NOT activate sandbox (steps may need network)
             if mode in (ReplayMode.STRICT, ReplayMode.MOCK):
                 self._sandbox.activate()
+
+                # Pre-load recorded responses into sandbox for mock mode
+                if mode == ReplayMode.MOCK:
+                    for step in run.steps:
+                        output = self._get_step_output(step)
+                        self._sandbox.add_recorded_response(step.step_number, output)
 
             # Replay steps
             for step in run.steps:
@@ -229,6 +274,11 @@ class ReplayEngine:
             if mode in (ReplayMode.STRICT, ReplayMode.MOCK):
                 self._sandbox.activate()
 
+                if mode == ReplayMode.MOCK:
+                    for step in run.steps:
+                        output = self._get_step_output(step)
+                        self._sandbox.add_recorded_response(step.step_number, output)
+
             for step in run.steps:
                 # Yield before executing
                 yield (step, session)
@@ -256,6 +306,11 @@ class ReplayEngine:
     ) -> StepResult:
         """Replay a single step.
 
+        For STRICT mode: always returns recorded output.
+        For PARTIAL mode: re-executes steps matching overrides, replays others.
+        For MOCK mode: returns recorded responses via sandbox.
+        For HYBRID mode: uses overrides to decide per-step.
+
         Args:
             step: Step to replay
             mode: Replay mode
@@ -263,7 +318,7 @@ class ReplayEngine:
             session: Current session
 
         Returns:
-            Step result
+            Step result with original and replay outputs
         """
         # Activate determinism controls
         self._determinism.activate(timestamp=step.timestamp_start)
@@ -272,32 +327,44 @@ class ReplayEngine:
             original_output = self._get_step_output(step)
             replay_output = original_output
             result_mode = "replayed"
+            execution_duration_ms = step.duration_ms
+            execution_error = None
 
-            # Check if we should re-execute
-            if mode == ReplayMode.PARTIAL and overrides.should_rerun(step):
-                # Check for patch function
-                patch_fn = overrides.get_patch(step)
-                if patch_fn:
-                    replay_output = patch_fn(step)
-                    result_mode = "patched"
+            should_rerun = overrides.should_rerun(step)
+
+            if mode == ReplayMode.STRICT:
+                # Always return recorded output
+                result_mode = "replayed"
+
+            elif mode == ReplayMode.PARTIAL:
+                if should_rerun:
+                    replay_output, result_mode, execution_duration_ms, execution_error = (
+                        self._execute_step(step, overrides)
+                    )
                 else:
-                    # Would re-execute here with real implementation
-                    # For now, just use recorded output
-                    result_mode = "re-executed"
+                    result_mode = "replayed"
+
+            elif mode == ReplayMode.MOCK:
+                # Use sandbox recorded responses
+                replay_output = self._sandbox.get_recorded_response(step.step_number)
+                result_mode = "mocked"
 
             elif mode == ReplayMode.HYBRID:
-                # Hybrid mode: check step-specific configuration
-                if overrides.should_rerun(step):
-                    result_mode = "re-executed"
+                if should_rerun:
+                    replay_output, result_mode, execution_duration_ms, execution_error = (
+                        self._execute_step(step, overrides)
+                    )
+                else:
+                    result_mode = "replayed"
 
-            # Check for divergence
+            # Check for divergence (only for re-executed/patched steps)
             diverged = False
             divergence_details = None
 
-            if result_mode != "replayed":
-                diverged = session.check_divergence(step, original_output, replay_output)
-                if diverged:
-                    divergence_details = f"Output changed from original"
+            if result_mode not in ("replayed", "mocked"):
+                diverged, divergence_details = self._check_divergence(
+                    step, original_output, replay_output, session
+                )
 
             return StepResult(
                 step_number=step.step_number,
@@ -307,11 +374,86 @@ class ReplayEngine:
                 replay_output=replay_output,
                 diverged=diverged,
                 divergence_details=divergence_details,
-                duration_ms=step.duration_ms,
+                duration_ms=execution_duration_ms,
             )
 
         finally:
             self._determinism.deactivate()
+
+    def _execute_step(
+        self,
+        step: AnyStep,
+        overrides: StepOverrides,
+    ) -> tuple[Any, str, int | None, str | None]:
+        """Execute a step using patch functions or registered executors.
+
+        Returns:
+            (output, mode_label, duration_ms, error)
+        """
+        # 1. Check for a patch function in overrides
+        patch_fn = overrides.get_patch(step)
+        if patch_fn is not None:
+            exec_result = execute_step(step, patch_fn)
+            return (
+                exec_result.output,
+                "patched",
+                exec_result.duration_ms,
+                exec_result.error,
+            )
+
+        # 2. Check registered executors
+        executor = self.executors.get_executor(step)
+        if executor is not None:
+            exec_result = execute_step(step, executor)
+            return (
+                exec_result.output,
+                "re-executed",
+                exec_result.duration_ms,
+                exec_result.error,
+            )
+
+        # 3. No executor found - return recorded output with warning
+        return (
+            self._get_step_output(step),
+            "replayed",
+            step.duration_ms,
+            None,
+        )
+
+    def _check_divergence(
+        self,
+        step: AnyStep,
+        original_output: Any,
+        replay_output: Any,
+        session: ReplaySession,
+    ) -> tuple[bool, str | None]:
+        """Check for divergence and build details string.
+
+        Returns:
+            (diverged, details)
+        """
+        try:
+            diverged = session.check_divergence(step, original_output, replay_output)
+        except Exception:
+            # In non-strict modes, check_divergence may raise; treat as diverged
+            diverged = True
+
+        if not diverged:
+            return False, None
+
+        # Build divergence details
+        details_parts = []
+
+        orig_preview = _preview_value(original_output)
+        new_preview = _preview_value(replay_output)
+
+        if orig_preview != new_preview:
+            details_parts.append(f"original: {orig_preview}")
+            details_parts.append(f"new: {new_preview}")
+        else:
+            details_parts.append("Output hash changed")
+
+        return True, " | ".join(details_parts)
 
     def _get_step_output(self, step: AnyStep) -> Any:
         """Extract the output from a step.
@@ -326,6 +468,14 @@ class ReplayEngine:
             return step.response
         elif isinstance(step, ToolCallStep):
             return step.output.result if step.output else None
+        elif isinstance(step, ChainStep):
+            return step.output
+        elif isinstance(step, AgentStep):
+            return step.action_output or step.final_answer
+        elif isinstance(step, RetrievalStep):
+            if step.results:
+                return step.results.documents
+            return None
         else:
             return getattr(step, "output", None) or getattr(step, "result", None)
 
@@ -343,3 +493,13 @@ class ReplayEngine:
             run_id = UUID(run_id)
 
         return self._loader.load_step(run_id, step_number)
+
+
+def _preview_value(value: Any, max_len: int = 80) -> str:
+    """Create a short preview of a value for divergence details."""
+    if value is None:
+        return "None"
+    s = str(value)
+    if len(s) > max_len:
+        return s[:max_len - 3] + "..."
+    return s
