@@ -300,6 +300,19 @@ BUILTIN_RULES: list[ClassificationRule] = [
             r"workflow\s+(failed|error)",
         ],
     ),
+    # --- Reasoning Loops ---
+    ClassificationRule(
+        name="reasoning_loop_message",
+        category=FailureCategory.REASONING_LOOP,
+        confidence=0.80,
+        error_patterns=[
+            r"(stuck|caught)\s+in\s+(a\s+)?loop",
+            r"max(imum)?\s+(iterations?|retries|attempts)\s+(exceeded|reached)",
+            r"repeated\s+action",
+            r"infinite\s+loop",
+            r"too\s+many\s+(iterations?|retries|attempts)",
+        ],
+    ),
 ]
 
 
@@ -371,6 +384,32 @@ class FailureClassifier:
 
         if best is not None:
             return best
+
+        # Step-sequence loop detection
+        if steps:
+            try:
+                from reagent.analysis.loop_detector import LoopDetector
+                from reagent.schema.steps import (
+                    AgentStep,
+                    LLMCallStep,
+                    ToolCallStep,
+                )
+
+                typed_steps = [
+                    s for s in steps
+                    if isinstance(s, (ToolCallStep, LLMCallStep, AgentStep))
+                ]
+                if typed_steps:
+                    result = LoopDetector().analyze(typed_steps)
+                    if result.loop_detected and result.confidence > 0.7:
+                        return ClassificationResult(
+                            category=FailureCategory.REASONING_LOOP,
+                            confidence=result.confidence,
+                            rule_name="step_sequence_loop",
+                            details=result.summary,
+                        )
+            except Exception:
+                pass  # Don't let loop detection break classification
 
         # Context-based fallback: check if steps have tool errors
         if steps:

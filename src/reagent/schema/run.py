@@ -145,11 +145,18 @@ class RunMetadata(BaseModel):
         output: Any = None,
         error: str | None = None,
         error_type: str | None = None,
+        steps: list[AnyStep] | None = None,
     ) -> None:
         """Mark the run as complete.
 
         If the run failed and no failure_category was manually set,
         auto-classifies the failure using the rule-based classifier.
+
+        Args:
+            output: Final output of the run.
+            error: Error message if the run failed.
+            error_type: Python exception type name.
+            steps: Step objects for context-based classification.
         """
         self.end_time = datetime.utcnow()
         if self.start_time:
@@ -168,6 +175,7 @@ class RunMetadata(BaseModel):
                 result = classify_failure(
                     error=error,
                     error_type=error_type,
+                    steps=steps,
                 )
                 self.failure_category = result.category.value
         else:

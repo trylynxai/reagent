@@ -90,6 +90,7 @@ class FailureCategory(str, Enum):
     CONNECTION_ERROR = "connection_error"
     PERMISSION_ERROR = "permission_error"
     RESOURCE_EXHAUSTED = "resource_exhausted"
+    REASONING_LOOP = "reasoning_loop"
     UNKNOWN = "unknown"
 
 
