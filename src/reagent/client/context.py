@@ -250,6 +250,10 @@ class RunContext:
             self._metadata.cost.by_model[model] = (
                 self._metadata.cost.by_model.get(model, 0) + cost_usd
             )
+            if provider:
+                self._metadata.cost.by_provider[provider] = (
+                    self._metadata.cost.by_provider.get(provider, 0) + cost_usd
+                )
 
         if model and model not in self._metadata.models_used:
             self._metadata.models_used.append(model)

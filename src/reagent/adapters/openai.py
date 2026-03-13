@@ -204,28 +204,10 @@ class CompletionsWrapper:
         )
 
     def _estimate_cost(self, model: str, prompt_tokens: int, completion_tokens: int) -> float:
-        """Estimate cost based on model pricing."""
-        # Pricing per 1K tokens (approximate, as of 2024)
-        pricing = {
-            "gpt-4": {"prompt": 0.03, "completion": 0.06},
-            "gpt-4-turbo": {"prompt": 0.01, "completion": 0.03},
-            "gpt-4-turbo-preview": {"prompt": 0.01, "completion": 0.03},
-            "gpt-4o": {"prompt": 0.005, "completion": 0.015},
-            "gpt-4o-mini": {"prompt": 0.00015, "completion": 0.0006},
-            "gpt-3.5-turbo": {"prompt": 0.0005, "completion": 0.0015},
-            "gpt-3.5-turbo-16k": {"prompt": 0.001, "completion": 0.002},
-        }
+        """Estimate cost using the centralized pricing database."""
+        from reagent.analysis.cost import estimate_cost
 
-        # Find matching model
-        model_lower = model.lower()
-        for model_key, prices in pricing.items():
-            if model_key in model_lower:
-                prompt_cost = (prompt_tokens / 1000) * prices["prompt"]
-                completion_cost = (completion_tokens / 1000) * prices["completion"]
-                return prompt_cost + completion_cost
-
-        # Default to gpt-4 pricing if unknown
-        return (prompt_tokens / 1000) * 0.03 + (completion_tokens / 1000) * 0.06
+        return estimate_cost(model, prompt_tokens, completion_tokens)
 
 
 def reagent_openai_call(context: RunContext) -> Callable[[Any], Any]:

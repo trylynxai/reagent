@@ -19,6 +19,7 @@ class CostSummary(BaseModel):
     llm_cost_usd: float = 0.0
     tool_cost_usd: float = 0.0
     by_model: dict[str, float] = Field(default_factory=dict)
+    by_provider: dict[str, float] = Field(default_factory=dict)
 
 
 class TokenSummary(BaseModel):
