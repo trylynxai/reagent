@@ -114,6 +114,18 @@ class AdapterError(ReAgentError):
     pass
 
 
+class AlertError(ReAgentError):
+    """Alert evaluation or delivery errors.
+
+    Raised when:
+    - Alert rule evaluation fails
+    - Webhook delivery fails
+    - Alert configuration is invalid
+    """
+
+    pass
+
+
 class BufferError(ReAgentError):
     """Event buffer errors.
 

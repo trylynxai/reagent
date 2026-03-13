@@ -6,7 +6,7 @@ Capture, replay, and debug AI agent executions with full fidelity.
 from reagent.client.reagent import ReAgent
 from reagent.client.context import RunContext
 from reagent.core.config import Config
-from reagent.core.constants import EventType, TransportMode, Status
+from reagent.core.constants import EventType, TransportMode, Status, AlertSeverity
 from reagent.core.exceptions import (
     ReAgentError,
     ConfigError,
@@ -14,6 +14,7 @@ from reagent.core.exceptions import (
     ReplayError,
     RedactionError,
     AdapterError,
+    AlertError,
 )
 
 __version__ = "0.1.0"
@@ -28,6 +29,7 @@ __all__ = [
     "EventType",
     "TransportMode",
     "Status",
+    "AlertSeverity",
     # Exceptions
     "ReAgentError",
     "ConfigError",
@@ -35,6 +37,7 @@ __all__ = [
     "ReplayError",
     "RedactionError",
     "AdapterError",
+    "AlertError",
     # Version
     "__version__",
 ]

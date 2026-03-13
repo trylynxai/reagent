@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 from uuid import UUID
 
+from reagent.alerts.engine import AlertEngine
 from reagent.core.config import Config
 from reagent.core.constants import TransportMode, StorageType
 from reagent.core.exceptions import ReAgentError
@@ -67,6 +68,9 @@ class ReAgent:
         # Initialize redaction engine
         self._redaction_engine = self._create_redaction_engine()
 
+        # Initialize alert engine (if configured)
+        self._alert_engine: AlertEngine | None = None
+
         # Track active runs
         self._active_runs: dict[UUID, RunContext] = {}
 
@@ -79,6 +83,15 @@ class ReAgent:
     def storage(self) -> StorageBackend:
         """Get the storage backend."""
         return self._storage
+
+    @property
+    def alert_engine(self) -> AlertEngine | None:
+        """Get the alert engine (if configured)."""
+        return self._alert_engine
+
+    def set_alert_engine(self, engine: AlertEngine) -> None:
+        """Set the alert engine for this client."""
+        self._alert_engine = engine
 
     def _create_storage(self) -> StorageBackend:
         """Create storage backend from configuration."""
@@ -148,6 +161,13 @@ class ReAgent:
         self._transport.send_metadata(run_id, metadata)
         self._transport.flush()
 
+        # Check alert rules at run end
+        if self._alert_engine is not None:
+            try:
+                self._alert_engine.check_run_end(metadata)
+            except Exception:
+                pass  # Alert errors must not break the pipeline
+
         # Remove from active runs
         self._active_runs.pop(run_id, None)
 
@@ -158,6 +178,15 @@ class ReAgent:
             step = self._redact_step(step)
 
         self._transport.send_step(run_id, step)
+
+        # Check budget alert rules after recording
+        if self._alert_engine is not None:
+            ctx = self._active_runs.get(run_id)
+            if ctx is not None:
+                try:
+                    self._alert_engine.check_step(ctx.metadata, step)
+                except Exception:
+                    pass  # Alert errors must not break the pipeline
 
     def _redact_step(self, step: AnyStep) -> AnyStep:
         """Apply redaction to a step."""

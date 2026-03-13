@@ -94,6 +94,13 @@ class FailureCategory(str, Enum):
     UNKNOWN = "unknown"
 
 
+class AlertSeverity(str, Enum):
+    """Severity levels for alerts."""
+
+    WARNING = "warning"
+    CRITICAL = "critical"
+
+
 class BackpressurePolicy(str, Enum):
     """Policy for handling buffer overflow."""
 
