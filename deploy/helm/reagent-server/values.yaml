@@ -1,0 +1,27 @@
+image:
+  repository: reagent-server
+  tag: latest
+  pullPolicy: IfNotPresent
+
+replicas: 1
+
+port: 8080
+
+persistence:
+  enabled: true
+  size: 10Gi
+  storageClass: ""
+
+resources:
+  requests:
+    memory: "256Mi"
+  limits:
+    memory: "512Mi"
+
+apiKeys: ""
+
+ingress:
+  enabled: false
+  host: reagent.example.com
+  annotations: {}
+  tls: []

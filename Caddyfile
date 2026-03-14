@@ -1,0 +1,3 @@
+reagent.example.com {
+    reverse_proxy reagent-server:8080
+}
