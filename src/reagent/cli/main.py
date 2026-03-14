@@ -88,6 +88,7 @@ def main(
 
 # Import and register commands
 from reagent.cli.commands import list_cmd, inspect_cmd, replay_cmd, diff_cmd, export_cmd, config_cmd, failures_cmd
+from reagent.cli.commands import server_cmd
 
 app.command(name="list")(list_cmd.list_runs)
 app.command(name="ls")(list_cmd.list_runs)  # Alias
@@ -98,8 +99,9 @@ app.command(name="diff")(diff_cmd.diff_runs)
 app.command(name="export")(export_cmd.export_run)
 app.command(name="config")(config_cmd.config_cmd)
 
-# Register failures subcommand group
+# Register subcommand groups
 app.add_typer(failures_cmd.app, name="failures")
+app.add_typer(server_cmd.app, name="server")
 
 
 # Search command

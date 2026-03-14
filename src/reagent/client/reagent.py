@@ -56,6 +56,16 @@ class ReAgent:
             storage: Optional storage backend (auto-created from config if not provided)
             **kwargs: Runtime configuration overrides
         """
+        # Handle server_url/api_key shorthand in kwargs
+        server_url = kwargs.pop("server_url", None)
+        api_key = kwargs.pop("api_key", None)
+        if server_url:
+            kwargs.setdefault("server", {})
+            kwargs["server"]["url"] = server_url
+        if api_key:
+            kwargs.setdefault("server", {})
+            kwargs["server"]["api_key"] = api_key
+
         # Load configuration
         self._config = config or Config.load(config_path=config_path, runtime_overrides=kwargs)
 
@@ -93,8 +103,20 @@ class ReAgent:
         """Set the alert engine for this client."""
         self._alert_engine = engine
 
+    def _is_remote_mode(self) -> bool:
+        """Check if the client should operate in remote mode."""
+        return self._config.mode == "remote" or self._config.server.url is not None
+
     def _create_storage(self) -> StorageBackend:
         """Create storage backend from configuration."""
+        if self._is_remote_mode():
+            from reagent.storage.remote import RemoteStorage
+            return RemoteStorage(
+                server_url=self._config.server.url,
+                api_key=self._config.server.api_key,
+                timeout_seconds=self._config.server.timeout_seconds,
+            )
+
         storage_config = self._config.storage
 
         if storage_config.type == StorageType.MEMORY:
@@ -111,6 +133,19 @@ class ReAgent:
 
     def _create_transport(self) -> Transport:
         """Create transport from configuration."""
+        if self._is_remote_mode():
+            from reagent.client.transport import RemoteTransport
+            srv = self._config.server
+            return RemoteTransport(
+                server_url=srv.url,
+                api_key=srv.api_key,
+                batch_size=srv.batch_size,
+                flush_interval_ms=srv.flush_interval_ms,
+                timeout_seconds=srv.timeout_seconds,
+                retry_max=srv.retry_max,
+                fallback_to_local=srv.fallback_to_local,
+            )
+
         return create_transport(
             mode=self._config.transport_mode,
             storage=self._storage,

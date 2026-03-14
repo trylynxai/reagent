@@ -57,6 +57,9 @@ class TransportMode(str, Enum):
     # Queue to disk for offline/air-gapped environments
     OFFLINE = "offline"
 
+    # Send events over HTTP to a remote ReAgent server
+    REMOTE = "remote"
+
 
 class Status(str, Enum):
     """Status of a run or step."""

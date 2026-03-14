@@ -390,6 +390,154 @@ class OfflineTransport(Transport):
         return uploaded
 
 
+class RemoteTransport(Transport):
+    """Remote transport that sends events over HTTP to a ReAgent server.
+
+    Events are buffered in memory and flushed as JSON batches
+    to POST /api/v1/ingest via a background thread.
+    """
+
+    def __init__(
+        self,
+        server_url: str,
+        api_key: str | None = None,
+        batch_size: int = 50,
+        flush_interval_ms: int = 2000,
+        timeout_seconds: float = 10.0,
+        retry_max: int = 3,
+        fallback_to_local: bool = True,
+    ) -> None:
+        self._server_url = server_url.rstrip("/")
+        self._api_key = api_key
+        self._batch_size = batch_size
+        self._flush_interval_ms = flush_interval_ms
+        self._timeout_seconds = timeout_seconds
+        self._retry_max = retry_max
+        self._fallback_to_local = fallback_to_local
+
+        self._lock = threading.Lock()
+        self._buffer: list[dict[str, Any]] = []
+        self._running = True
+        self._offline_transport: OfflineTransport | None = None
+
+        self._flush_thread = threading.Thread(target=self._flush_loop, daemon=True)
+        self._flush_thread.start()
+
+    def send_metadata(self, run_id: UUID, metadata: RunMetadata) -> None:
+        """Buffer metadata for remote delivery."""
+        event = {
+            "type": "metadata",
+            "run_id": str(run_id),
+            "data": metadata.model_dump(mode="json"),
+        }
+        self._add_to_buffer(event)
+
+    def send_step(self, run_id: UUID, step: AnyStep) -> None:
+        """Buffer a step for remote delivery."""
+        event = {
+            "type": "step",
+            "run_id": str(run_id),
+            "step_type": step.step_type,
+            "data": step.model_dump(mode="json"),
+        }
+        self._add_to_buffer(event)
+
+    def send_batch(self, run_id: UUID, steps: list[AnyStep]) -> None:
+        """Buffer a batch of steps for remote delivery."""
+        for step in steps:
+            self.send_step(run_id, step)
+
+    def _add_to_buffer(self, event: dict[str, Any]) -> None:
+        """Add event to buffer, flush if batch_size reached."""
+        with self._lock:
+            self._buffer.append(event)
+            if len(self._buffer) >= self._batch_size:
+                self._flush_buffer()
+
+    def _flush_loop(self) -> None:
+        """Background thread that flushes buffer periodically."""
+        interval = self._flush_interval_ms / 1000.0
+        while self._running:
+            time.sleep(interval)
+            with self._lock:
+                if self._buffer:
+                    self._flush_buffer()
+
+    def _flush_buffer(self) -> None:
+        """Flush buffered events to the server. Must be called with _lock held."""
+        if not self._buffer:
+            return
+
+        events = self._buffer[:]
+        self._buffer.clear()
+
+        try:
+            self._post_batch(events)
+        except Exception:
+            if self._fallback_to_local:
+                self._fallback_write(events)
+
+    def _post_batch(self, events: list[dict[str, Any]]) -> None:
+        """POST a batch of events to the server with retry."""
+        import urllib.request
+        import urllib.error
+
+        url = f"{self._server_url}/api/v1/ingest"
+        payload = json.dumps({"events": events}).encode("utf-8")
+
+        headers: dict[str, str] = {"Content-Type": "application/json"}
+        if self._api_key:
+            headers["Authorization"] = f"Bearer {self._api_key}"
+
+        last_error: Exception | None = None
+        for attempt in range(self._retry_max + 1):
+            try:
+                req = urllib.request.Request(url, data=payload, headers=headers, method="POST")
+                timeout = self._timeout_seconds
+                with urllib.request.urlopen(req, timeout=timeout) as resp:
+                    resp.read()
+                return
+            except Exception as e:
+                last_error = e
+                if attempt < self._retry_max:
+                    backoff = 2 ** attempt
+                    time.sleep(backoff)
+
+        if last_error is not None:
+            raise last_error
+
+    def _fallback_write(self, events: list[dict[str, Any]]) -> None:
+        """Write events to offline transport as fallback."""
+        if self._offline_transport is None:
+            self._offline_transport = OfflineTransport()
+
+        for event in events:
+            run_id = UUID(event["run_id"])
+            if event["type"] == "metadata":
+                metadata = RunMetadata.model_validate(event["data"])
+                self._offline_transport.send_metadata(run_id, metadata)
+            elif event["type"] == "step":
+                from reagent.storage.sqlite import STEP_TYPE_MAP, CustomStep
+                step_cls = STEP_TYPE_MAP.get(event.get("step_type", "custom"), CustomStep)
+                step = step_cls.model_validate(event["data"])
+                self._offline_transport.send_step(run_id, step)
+
+    def flush(self) -> None:
+        """Flush all pending events."""
+        with self._lock:
+            self._flush_buffer()
+
+    def close(self) -> None:
+        """Close the transport."""
+        self._running = False
+        self.flush()
+        self._flush_thread.join(timeout=5.0)
+
+    @property
+    def mode(self) -> TransportMode:
+        return TransportMode.REMOTE
+
+
 def create_transport(mode: TransportMode, storage: StorageBackend, **kwargs: Any) -> Transport:
     """Factory function to create a transport by mode.
 
@@ -409,5 +557,7 @@ def create_transport(mode: TransportMode, storage: StorageBackend, **kwargs: Any
         return BufferedTransport(storage, **kwargs)
     elif mode == TransportMode.OFFLINE:
         return OfflineTransport(**kwargs)
+    elif mode == TransportMode.REMOTE:
+        return RemoteTransport(**kwargs)
     else:
         raise TransportError(f"Unknown transport mode: {mode}")

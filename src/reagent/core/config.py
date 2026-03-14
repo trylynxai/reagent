@@ -91,8 +91,23 @@ class CLIConfig(BaseModel):
     editor: str | None = None
 
 
+class ServerConfig(BaseModel):
+    """Remote server configuration for SDK and CLI."""
+
+    url: str | None = None
+    api_key: str | None = None
+    batch_size: int = Field(default=50, ge=1, le=1000)
+    flush_interval_ms: int = Field(default=2000, ge=100, le=30000)
+    timeout_seconds: float = Field(default=10.0, ge=1, le=120)
+    retry_max: int = Field(default=3, ge=0, le=10)
+    fallback_to_local: bool = True
+
+
 class Config(BaseModel):
     """Main ReAgent configuration."""
+
+    # Mode: "local" or "remote"
+    mode: str = "local"
 
     # Transport settings
     transport_mode: TransportMode = DEFAULT_TRANSPORT_MODE
@@ -106,6 +121,7 @@ class Config(BaseModel):
     redaction: RedactionConfig = Field(default_factory=RedactionConfig)
     replay: ReplayConfig = Field(default_factory=ReplayConfig)
     cli: CLIConfig = Field(default_factory=CLIConfig)
+    server: ServerConfig = Field(default_factory=ServerConfig)
 
     # Debug settings
     debug: bool = False
@@ -246,6 +262,10 @@ class Config(BaseModel):
             # CLI
             "REAGENT_OUTPUT_FORMAT": "cli.default_format",
             "REAGENT_COLOR": "cli.color_output",
+            # Mode and server
+            "REAGENT_MODE": "mode",
+            "REAGENT_SERVER_URL": "server.url",
+            "REAGENT_API_KEY": "server.api_key",
         }
 
         for env_var, config_path in env_mapping.items():
