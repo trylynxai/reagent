@@ -12,6 +12,7 @@ ReAgent captures, analyzes, and replays AI agent executions. Debug failures, und
 - **Failure Analysis** - Track errors with full tracebacks and failure categorization
 - **Cost & Token Analytics** - Monitor spending across models and runs
 - **Framework Adapters** - Native support for LangChain, OpenAI, OpenAI Agents, CrewAI, and LlamaIndex
+- **Web Dashboard** - Interactive UI with trace visualization, node graph inspection, and step-through replay
 - **Interactive CLI** - Inspect, search, and analyze runs from the terminal
 - **HTML Reports** - Export interactive reports for sharing and debugging
 - **Deterministic Replay** - Reproduce agent behavior for testing
@@ -249,6 +250,33 @@ def run_my_agent(user_input: str):
 
 ---
 
+## Web Dashboard
+
+ReAgent includes an interactive web dashboard built with React, Vite, and Tailwind CSS. It provides three core views for debugging and understanding agent executions.
+
+### Views
+
+- **Run List** (`/runs`) — Card-based grid with status badges, model pills, cost/duration/step metrics, and filter controls (project, status, model, time range). Each card has [Inspect], [Replay], and [Export] actions.
+- **Trace Inspect** (`/trace/:runId`) — Interactive node graph (powered by @xyflow/react) showing the execution flow with color-coded nodes (purple=LLM, blue=Tool, green=Retrieval, red=Error). Includes a detail panel with Prompt/Response/Raw/State tabs and a timeline bar.
+- **Replay Player** (`/replay/:runId`) — Step-through debugger with playback controls (play/pause/next/prev), adjustable speed (0.5x–5x), breakpoints, a state inspector with expandable tree view, and keyboard shortcuts (Space, arrows, B, Esc, [/]).
+
+### Running the Dashboard
+
+```bash
+cd dashboard
+npm install
+npm run dev      # Development server at http://localhost:5173
+npm run build    # Production build to dist/
+```
+
+The dashboard runs with static mock data by default. To connect to a live ReAgent server, edit `src/api/client.js` to switch from mock exports to the HTTP client.
+
+### Layout
+
+The dashboard uses a 4-zone layout: global header (logo, search, project switcher), sidebar navigation, main stage, and a status bar (connection health, mode indicator).
+
+---
+
 ## CLI Usage
 
 The CLI works in both local and remote mode. For remote mode, set the server URL:
@@ -421,6 +449,13 @@ src/reagent/
 ├── cli/              # CLI commands
 │   ├── commands/     # Individual commands (list, inspect, server, etc.)
 │   └── templates/    # HTML templates
+dashboard/                # Web dashboard (React + Vite + Tailwind)
+├── src/
+│   ├── components/       # UI components (graph nodes, controls, cards)
+│   ├── pages/            # Route pages (Runs, TraceInspect, ReplayPlayer, etc.)
+│   ├── stores/           # Zustand state (runStore, traceStore, replayStore)
+│   ├── hooks/            # Replay engine and keyboard shortcuts
+│   └── api/              # API client and mock data
 ├── analysis/         # Analytics & search
 ├── classification/   # Failure classification
 ├── redaction/        # PII redaction
