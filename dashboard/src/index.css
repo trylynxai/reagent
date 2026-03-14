@@ -3,7 +3,7 @@
 @tailwind utilities;
 
 body {
-  @apply bg-slate-950 text-slate-100;
+  @apply bg-prd-bg text-prd-text-primary;
 }
 
 /* Custom scrollbar styles for dark theme */
@@ -13,19 +13,49 @@ body {
 }
 
 ::-webkit-scrollbar-track {
-  @apply bg-slate-900;
+  background: #161b22;
 }
 
 ::-webkit-scrollbar-thumb {
-  @apply bg-slate-700 rounded-full;
+  @apply rounded-full;
+  background: #30363d;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  @apply bg-slate-600;
+  background: #484f58;
 }
 
 /* Firefox scrollbar */
 * {
   scrollbar-width: thin;
-  scrollbar-color: #334155 #0f172a;
+  scrollbar-color: #30363d #161b22;
+}
+
+/* React Flow overrides */
+.react-flow__background {
+  background: #0d1117 !important;
+}
+
+.react-flow__minimap {
+  background: #161b22 !important;
+}
+
+.react-flow__controls button {
+  background: #161b22 !important;
+  border-color: #30363d !important;
+  color: #c9d1d9 !important;
+}
+
+.react-flow__controls button:hover {
+  background: #30363d !important;
+}
+
+/* Pulse animation for selected nodes */
+@keyframes node-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(88, 166, 255, 0.4); }
+  50% { box-shadow: 0 0 0 8px rgba(88, 166, 255, 0); }
+}
+
+.node-selected {
+  animation: node-pulse 2s ease-in-out infinite;
 }

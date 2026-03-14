@@ -19,6 +19,7 @@ export {
   fetchFailureStats,
   fetchStats,
   fetchHealth,
+  fetchTraceGraph,
 } from './mockData.js';
 
 // ── Real HTTP client (uncomment to use live backend) ────────

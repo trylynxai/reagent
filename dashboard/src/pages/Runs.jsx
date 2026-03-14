@@ -1,177 +1,31 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
-import { ListOrdered, Search, ChevronLeft, ChevronRight } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
+import { ListOrdered, ChevronLeft, ChevronRight, Search, Clock } from 'lucide-react';
 import { fetchRuns } from '../api/client.js';
-import Header from '../components/Header.jsx';
-import StatusBadge from '../components/StatusBadge.jsx';
+import RunCard from '../components/RunCard.jsx';
 
-const PAGE_SIZE = 25;
+const PAGE_SIZE = 12;
 
-function formatDuration(ms) {
-  if (ms == null) return '-';
-  if (ms < 1000) return `${ms}ms`;
-  return `${(ms / 1000).toFixed(2)}s`;
-}
-
-function formatCost(cost) {
-  if (cost == null) return '-';
-  return `$${Number(cost).toFixed(4)}`;
-}
-
-function formatTime(dateStr) {
-  if (!dateStr) return '-';
-  return new Date(dateStr).toLocaleString();
-}
-
-function SearchBar({ value, onChange, placeholder }) {
-  return (
-    <div className="relative">
-      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
-      <input
-        type="text"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder || 'Search runs...'}
-        className="w-full pl-10 pr-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-      />
-    </div>
-  );
-}
-
-function FilterSelect({ label, value, onChange, options }) {
-  return (
-    <select
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      aria-label={label}
-      className="bg-slate-800 border border-slate-700 rounded-lg text-sm text-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-    >
-      {options.map((opt) => (
-        <option key={opt.value} value={opt.value}>
-          {opt.label}
-        </option>
-      ))}
-    </select>
-  );
-}
-
-function RunTable({ runs, onRowClick, loading }) {
-  if (loading) {
-    return (
-      <div className="space-y-2">
-        {Array.from({ length: 8 }).map((_, i) => (
-          <div
-            key={i}
-            className="h-12 bg-slate-800 border border-slate-700 rounded animate-pulse"
-          />
-        ))}
-      </div>
-    );
-  }
-
-  if (!runs?.length) {
-    return (
-      <div className="text-center py-16 text-slate-500">
-        <ListOrdered className="w-10 h-10 mx-auto mb-3 opacity-40" />
-        <p>No runs found</p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="bg-slate-800 border border-slate-700 rounded-lg overflow-hidden">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b border-slate-700 text-left">
-            <th className="px-4 py-3 text-xs font-medium text-slate-400 uppercase tracking-wider">
-              Name
-            </th>
-            <th className="px-4 py-3 text-xs font-medium text-slate-400 uppercase tracking-wider">
-              Status
-            </th>
-            <th className="px-4 py-3 text-xs font-medium text-slate-400 uppercase tracking-wider">
-              Project
-            </th>
-            <th className="px-4 py-3 text-xs font-medium text-slate-400 uppercase tracking-wider">
-              Model
-            </th>
-            <th className="px-4 py-3 text-xs font-medium text-slate-400 uppercase tracking-wider">
-              Duration
-            </th>
-            <th className="px-4 py-3 text-xs font-medium text-slate-400 uppercase tracking-wider">
-              Tokens
-            </th>
-            <th className="px-4 py-3 text-xs font-medium text-slate-400 uppercase tracking-wider">
-              Cost
-            </th>
-            <th className="px-4 py-3 text-xs font-medium text-slate-400 uppercase tracking-wider">
-              Time
-            </th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-slate-700/50">
-          {runs.map((run) => (
-            <tr
-              key={run.run_id}
-              onClick={() => onRowClick(run.run_id)}
-              className="hover:bg-slate-700/30 cursor-pointer transition-colors"
-            >
-              <td className="px-4 py-3 text-white font-medium truncate max-w-[200px]">
-                {run.name || run.run_id}
-              </td>
-              <td className="px-4 py-3">
-                <StatusBadge status={run.status} />
-              </td>
-              <td className="px-4 py-3 text-slate-400">
-                {run.project || '-'}
-              </td>
-              <td className="px-4 py-3 text-slate-400">
-                {run.model || '-'}
-              </td>
-              <td className="px-4 py-3 text-slate-400">
-                {formatDuration(run.duration_ms)}
-              </td>
-              <td className="px-4 py-3 text-slate-400">
-                {run.total_tokens?.toLocaleString() ?? '-'}
-              </td>
-              <td className="px-4 py-3 text-slate-400">
-                {formatCost(run.total_cost_usd)}
-              </td>
-              <td className="px-4 py-3 text-slate-500 text-xs">
-                {formatTime(run.start_time)}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
+const TIME_RANGES = [
+  { value: '', label: 'All Time' },
+  { value: '1h', label: 'Last Hour' },
+  { value: '24h', label: 'Last 24h' },
+  { value: '7d', label: 'Last 7 Days' },
+  { value: '30d', label: 'Last 30 Days' },
+];
 
 export default function Runs() {
-  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [runs, setRuns] = useState([]);
   const [allRuns, setAllRuns] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [page, setPage] = useState(
-    parseInt(searchParams.get('page') || '1', 10)
-  );
-  const [searchText, setSearchText] = useState(
-    searchParams.get('q') || ''
-  );
-  const [statusFilter, setStatusFilter] = useState(
-    searchParams.get('status') || ''
-  );
-  const [projectFilter, setProjectFilter] = useState(
-    searchParams.get('project') || ''
-  );
-  const [modelFilter, setModelFilter] = useState(
-    searchParams.get('model') || ''
-  );
-
-  // Unique projects and models derived from all runs
+  const [page, setPage] = useState(parseInt(searchParams.get('page') || '1', 10));
+  const [searchText, setSearchText] = useState(searchParams.get('q') || '');
+  const [statusFilter, setStatusFilter] = useState(searchParams.get('status') || '');
+  const [projectFilter, setProjectFilter] = useState(searchParams.get('project') || '');
+  const [modelFilter, setModelFilter] = useState(searchParams.get('model') || '');
+  const [timeRange, setTimeRange] = useState(searchParams.get('time') || '');
   const [projects, setProjects] = useState([]);
   const [models, setModels] = useState([]);
 
@@ -187,7 +41,6 @@ export default function Runs() {
       const list = Array.isArray(data) ? data : [];
       setAllRuns(list);
 
-      // Extract unique projects and models
       const projSet = new Set();
       const modelSet = new Set();
       list.forEach((r) => {
@@ -196,19 +49,15 @@ export default function Runs() {
       });
       setProjects([...projSet].sort());
       setModels([...modelSet].sort());
-    } catch (err) {
-      console.error('Failed to fetch runs:', err);
+    } catch {
       setAllRuns([]);
     } finally {
       setLoading(false);
     }
   }, [statusFilter, projectFilter, modelFilter]);
 
-  useEffect(() => {
-    loadRuns();
-  }, [loadRuns]);
+  useEffect(() => { loadRuns(); }, [loadRuns]);
 
-  // Apply text search filter client-side
   useEffect(() => {
     let filtered = allRuns;
     if (searchText.trim()) {
@@ -221,104 +70,125 @@ export default function Runs() {
           (r.tags && r.tags.some((t) => t.toLowerCase().includes(q)))
       );
     }
+    if (timeRange) {
+      const now = Date.now();
+      const ms = timeRange === '1h' ? 3600000 : timeRange === '24h' ? 86400000 : timeRange === '7d' ? 604800000 : 2592000000;
+      filtered = filtered.filter((r) => r.start_time && (now - new Date(r.start_time).getTime()) < ms);
+    }
     setRuns(filtered);
     setPage(1);
-  }, [allRuns, searchText]);
+  }, [allRuns, searchText, timeRange]);
 
-  // Sync filters to URL
   useEffect(() => {
     const params = {};
     if (statusFilter) params.status = statusFilter;
     if (projectFilter) params.project = projectFilter;
     if (modelFilter) params.model = modelFilter;
     if (searchText) params.q = searchText;
+    if (timeRange) params.time = timeRange;
     if (page > 1) params.page = String(page);
     setSearchParams(params, { replace: true });
-  }, [statusFilter, projectFilter, modelFilter, searchText, page, setSearchParams]);
+  }, [statusFilter, projectFilter, modelFilter, searchText, timeRange, page, setSearchParams]);
 
   const totalPages = Math.max(1, Math.ceil(runs.length / PAGE_SIZE));
   const pagedRuns = runs.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   return (
-    <>
-      <Header title="Runs">
-        <span className="text-sm text-slate-400">
-          {runs.length} run{runs.length !== 1 ? 's' : ''}
-        </span>
-      </Header>
-      <main className="flex-1 overflow-y-auto p-6 space-y-4">
-        {/* Filter bar */}
-        <div className="flex flex-wrap items-center gap-3">
-          <FilterSelect
-            label="Project"
+    <div className="flex-1 flex flex-col overflow-y-auto">
+      <div className="p-4 border-b border-prd-border bg-prd-surface">
+        <div className="flex items-center justify-between mb-3">
+          <h1 className="text-lg font-semibold text-prd-text-primary">Runs</h1>
+          <span className="text-sm text-prd-text-secondary">{runs.length} run{runs.length !== 1 ? 's' : ''}</span>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <select
             value={projectFilter}
-            onChange={setProjectFilter}
-            options={[
-              { value: '', label: 'All Projects' },
-              ...projects.map((p) => ({ value: p, label: p })),
-            ]}
-          />
-          <FilterSelect
-            label="Status"
+            onChange={(e) => setProjectFilter(e.target.value)}
+            className="bg-prd-bg border border-prd-border rounded-md text-sm text-prd-text-primary px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-prd-tool"
+          >
+            <option value="">All Projects</option>
+            {projects.map((p) => <option key={p} value={p}>{p}</option>)}
+          </select>
+          <select
             value={statusFilter}
-            onChange={setStatusFilter}
-            options={[
-              { value: '', label: 'All Statuses' },
-              { value: 'completed', label: 'Completed' },
-              { value: 'failed', label: 'Failed' },
-              { value: 'running', label: 'Running' },
-            ]}
-          />
-          <FilterSelect
-            label="Model"
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="bg-prd-bg border border-prd-border rounded-md text-sm text-prd-text-primary px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-prd-tool"
+          >
+            <option value="">All Statuses</option>
+            <option value="completed">Completed</option>
+            <option value="failed">Failed</option>
+            <option value="running">Running</option>
+          </select>
+          <select
             value={modelFilter}
-            onChange={setModelFilter}
-            options={[
-              { value: '', label: 'All Models' },
-              ...models.map((m) => ({ value: m, label: m })),
-            ]}
-          />
-          <div className="flex-1 min-w-[200px]">
-            <SearchBar
+            onChange={(e) => setModelFilter(e.target.value)}
+            className="bg-prd-bg border border-prd-border rounded-md text-sm text-prd-text-primary px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-prd-tool"
+          >
+            <option value="">All Models</option>
+            {models.map((m) => <option key={m} value={m}>{m}</option>)}
+          </select>
+          <select
+            value={timeRange}
+            onChange={(e) => setTimeRange(e.target.value)}
+            className="bg-prd-bg border border-prd-border rounded-md text-sm text-prd-text-primary px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-prd-tool"
+          >
+            {TIME_RANGES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+          </select>
+          <div className="flex-1 min-w-[200px] relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-prd-text-secondary" />
+            <input
+              type="text"
               value={searchText}
-              onChange={setSearchText}
+              onChange={(e) => setSearchText(e.target.value)}
               placeholder="Filter by name, ID, or tags..."
+              className="w-full pl-10 pr-4 py-1.5 bg-prd-bg border border-prd-border rounded-md text-sm text-prd-text-primary placeholder-prd-text-secondary focus:outline-none focus:ring-1 focus:ring-prd-tool"
             />
           </div>
         </div>
+      </div>
 
-        {/* Run table */}
-        <RunTable
-          runs={pagedRuns}
-          onRowClick={(id) => navigate(`/runs/${id}`)}
-          loading={loading}
-        />
+      <div className="flex-1 overflow-y-auto p-4">
+        {loading ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="h-48 bg-prd-surface border border-prd-border rounded-lg animate-pulse" />
+            ))}
+          </div>
+        ) : pagedRuns.length === 0 ? (
+          <div className="text-center py-16 text-prd-text-secondary">
+            <ListOrdered className="w-10 h-10 mx-auto mb-3 opacity-40" />
+            <p>No runs found</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            {pagedRuns.map((run) => (
+              <RunCard key={run.run_id} run={run} />
+            ))}
+          </div>
+        )}
 
-        {/* Pagination */}
         {totalPages > 1 && (
-          <div className="flex items-center justify-between pt-2">
-            <p className="text-sm text-slate-500">
-              Page {page} of {totalPages}
-            </p>
+          <div className="flex items-center justify-between pt-4 mt-4 border-t border-prd-border">
+            <p className="text-sm text-prd-text-secondary">Page {page} of {totalPages}</p>
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
                 disabled={page <= 1}
-                className="p-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                className="p-2 rounded-lg bg-prd-surface border border-prd-border text-prd-text-secondary hover:bg-prd-bg disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
                 <ChevronLeft className="w-4 h-4" />
               </button>
               <button
                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                 disabled={page >= totalPages}
-                className="p-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                className="p-2 rounded-lg bg-prd-surface border border-prd-border text-prd-text-secondary hover:bg-prd-bg disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
                 <ChevronRight className="w-4 h-4" />
               </button>
             </div>
           </div>
         )}
-      </main>
-    </>
+      </div>
+    </div>
   );
 }

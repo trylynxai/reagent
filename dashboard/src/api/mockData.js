@@ -811,3 +811,27 @@ export async function fetchHealth() {
   await delay(50);
   return { status: 'ok' };
 }
+
+export async function fetchTraceGraph(runId) {
+  await delay(200);
+  const run = await fetchRun(runId);
+  const steps = run.steps || [];
+
+  const nodes = steps.map((step, i) => ({
+    id: step.step_id || `step-${i}`,
+    type: step.step_type,
+    position: { x: 250, y: i * 120 },
+    data: { ...step, stepIndex: i },
+  }));
+
+  const edges = [];
+  for (let i = 1; i < nodes.length; i++) {
+    edges.push({
+      id: `e-${nodes[i - 1].id}-${nodes[i].id}`,
+      source: nodes[i - 1].id,
+      target: nodes[i].id,
+    });
+  }
+
+  return { nodes, edges };
+}

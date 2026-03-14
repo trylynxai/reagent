@@ -5,24 +5,24 @@ export default function StatsCard({
   value,
   subtitle,
   icon: Icon,
-  iconColor = 'bg-blue-500/20 text-blue-400',
+  iconColor = 'bg-prd-tool/20 text-prd-tool',
   trend,
 }) {
   return (
-    <div className="bg-slate-800 border border-slate-700 rounded-lg p-5 transition-colors hover:border-slate-600">
+    <div className="bg-prd-surface border border-prd-border rounded-lg p-5 transition-colors hover:border-prd-text-secondary/40">
       <div className="flex items-start justify-between">
         <div className="space-y-2 min-w-0">
-          <p className="text-sm text-slate-400">{title}</p>
+          <p className="text-sm text-prd-text-secondary">{title}</p>
           <div className="flex items-baseline gap-2">
-            <p className="text-2xl font-semibold text-white truncate">
+            <p className="text-2xl font-semibold text-prd-text-primary truncate">
               {value}
             </p>
             {trend && (
               <span
                 className={`flex items-center gap-0.5 text-xs font-medium ${
                   trend.direction === 'up'
-                    ? 'text-green-400'
-                    : 'text-red-400'
+                    ? 'text-prd-retrieval'
+                    : 'text-prd-error'
                 }`}
               >
                 {trend.direction === 'up' ? (
@@ -35,7 +35,7 @@ export default function StatsCard({
             )}
           </div>
           {subtitle && (
-            <p className="text-xs text-slate-500">{subtitle}</p>
+            <p className="text-xs text-prd-text-secondary">{subtitle}</p>
           )}
         </div>
         {Icon && (
