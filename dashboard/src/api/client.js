@@ -1,29 +1,9 @@
 /**
  * API client for the ReAgent dashboard.
  *
- * Currently wired to static mock data for demo purposes.
- * To switch to a live backend, comment out the mock re-exports below
- * and uncomment the real HTTP client code at the bottom of this file.
+ * Using live backend via HTTP.
  */
 
-// ── Mock mode (static data) ─────────────────────────────────
-export {
-  fetchRuns,
-  fetchRun,
-  fetchRunMetadata,
-  fetchRunSteps,
-  fetchRunCount,
-  deleteRun,
-  searchRuns,
-  fetchFailures,
-  fetchFailureStats,
-  fetchStats,
-  fetchHealth,
-  fetchTraceGraph,
-} from './mockData.js';
-
-// ── Real HTTP client (uncomment to use live backend) ────────
-/*
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 
 function getHeaders() {
@@ -109,4 +89,3 @@ export function fetchStats(params) {
 export function fetchHealth() {
   return request('/health');
 }
-*/
