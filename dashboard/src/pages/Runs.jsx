@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { ListOrdered, ChevronLeft, ChevronRight, Search, Clock } from 'lucide-react';
 import { fetchRuns } from '../api/client.js';
+import { useAutoRefresh } from '../hooks/useAutoRefresh.js';
 import RunCard from '../components/RunCard.jsx';
 
 const PAGE_SIZE = 12;
@@ -19,7 +20,6 @@ export default function Runs() {
 
   const [runs, setRuns] = useState([]);
   const [allRuns, setAllRuns] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(parseInt(searchParams.get('page') || '1', 10));
   const [searchText, setSearchText] = useState(searchParams.get('q') || '');
   const [statusFilter, setStatusFilter] = useState(searchParams.get('status') || '');
@@ -30,7 +30,6 @@ export default function Runs() {
   const [models, setModels] = useState([]);
 
   const loadRuns = useCallback(async () => {
-    setLoading(true);
     try {
       const params = {};
       if (statusFilter) params.status = statusFilter;
@@ -49,14 +48,14 @@ export default function Runs() {
       });
       setProjects([...projSet].sort());
       setModels([...modelSet].sort());
+      return list;
     } catch {
       setAllRuns([]);
-    } finally {
-      setLoading(false);
+      return [];
     }
   }, [statusFilter, projectFilter, modelFilter]);
 
-  useEffect(() => { loadRuns(); }, [loadRuns]);
+  const { data, loading } = useAutoRefresh(loadRuns, 10000);
 
   useEffect(() => {
     let filtered = allRuns;

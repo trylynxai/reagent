@@ -19,6 +19,7 @@ import {
   Cell,
 } from 'recharts';
 import { fetchStats, fetchRuns, fetchFailureStats } from '../api/client.js';
+import { useAutoRefresh } from '../hooks/useAutoRefresh.js';
 import StatsCard from '../components/StatsCard.jsx';
 import StatusBadge from '../components/StatusBadge.jsx';
 
@@ -92,32 +93,20 @@ export default function Overview() {
   const [stats, setStats] = useState(null);
   const [runs, setRuns] = useState(null);
   const [failureStats, setFailureStats] = useState(null);
-  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    let cancelled = false;
+  const loadOverviewData = async () => {
+    const [statsData, runsData, failuresData] = await Promise.all([
+      fetchStats(),
+      fetchRuns({ limit: 30 }),
+      fetchFailureStats(),
+    ]);
+    setStats(statsData);
+    setRuns(runsData);
+    setFailureStats(failuresData);
+    return { stats: statsData, runs: runsData, failureStats: failuresData };
+  };
 
-    async function load() {
-      try {
-        const [statsData, runsData, failuresData] = await Promise.all([
-          fetchStats(),
-          fetchRuns({ limit: 30 }),
-          fetchFailureStats(),
-        ]);
-        if (cancelled) return;
-        setStats(statsData);
-        setRuns(runsData);
-        setFailureStats(failuresData);
-      } catch (err) {
-        console.error('Failed to load overview data:', err);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    }
-
-    load();
-    return () => { cancelled = true; };
-  }, []);
+  const { data, loading } = useAutoRefresh(loadOverviewData, 10000);
 
   const recentRuns = runs?.slice(0, 10) || [];
 

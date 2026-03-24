@@ -1,7 +1,8 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Search as SearchIcon, ListOrdered, Loader2 } from 'lucide-react';
 import { searchRuns } from '../api/client.js';
+import { useAutoRefresh } from '../hooks/useAutoRefresh.js';
 import StatusBadge from '../components/StatusBadge.jsx';
 
 function formatDuration(ms) {
@@ -73,15 +74,16 @@ export default function Search() {
   const [results, setResults] = useState(null);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
+  const [lastSearchedQuery, setLastSearchedQuery] = useState(null);
 
   const handleSearch = useCallback(
-    async (e) => {
-      e?.preventDefault();
-      const trimmed = query.trim();
+    async (searchQuery = query) => {
+      const trimmed = (searchQuery || query).trim();
       if (!trimmed) return;
 
       setLoading(true);
       setSearched(true);
+      setLastSearchedQuery(trimmed);
       try {
         const data = await searchRuns(trimmed);
         setResults(Array.isArray(data) ? data : []);
@@ -90,16 +92,32 @@ export default function Search() {
       } finally {
         setLoading(false);
       }
+      return trimmed;
     },
     [query]
   );
 
+  const refreshSearch = useCallback(async () => {
+    if (!lastSearchedQuery) return;
+    setLoading(true);
+    try {
+      const data = await searchRuns(lastSearchedQuery);
+      setResults(Array.isArray(data) ? data : []);
+    } catch {
+      // Silent fail on refresh
+    } finally {
+      setLoading(false);
+    }
+  }, [lastSearchedQuery]);
+
+  useAutoRefresh(refreshSearch, 10000);
+
   // Auto-search if query param exists
-  useState(() => {
+  useEffect(() => {
     if (query) {
       handleSearch();
     }
-  });
+  }, []);
 
   return (
     <div className="flex-1 overflow-y-auto">

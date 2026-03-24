@@ -17,6 +17,7 @@ import {
   Cell,
 } from 'recharts';
 import { fetchRuns, fetchFailureStats } from '../api/client.js';
+import { useAutoRefresh } from '../hooks/useAutoRefresh.js';
 import StatsCard from '../components/StatsCard.jsx';
 import StatusBadge from '../components/StatusBadge.jsx';
 
@@ -138,7 +139,6 @@ export default function Failures() {
 
   const [failureStats, setFailureStats] = useState(null);
   const [runs, setRuns] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(parseInt(searchParams.get('page') || '1', 10));
   const [projectFilter, setProjectFilter] = useState(searchParams.get('project') || '');
   const [categoryFilter, setCategoryFilter] = useState(searchParams.get('category') || '');
@@ -146,7 +146,6 @@ export default function Failures() {
   const [categories, setCategories] = useState([]);
 
   const loadData = useCallback(async () => {
-    setLoading(true);
     try {
       const params = { status: 'failed' };
       if (projectFilter) params.project = projectFilter;
@@ -169,14 +168,14 @@ export default function Failures() {
       });
       setProjects([...projSet].sort());
       setCategories([...catSet].sort());
+      return { stats: statsData, runs: list };
     } catch (err) {
       console.error('Failed to load failure data:', err);
-    } finally {
-      setLoading(false);
+      return null;
     }
   }, [projectFilter, categoryFilter]);
 
-  useEffect(() => { loadData(); }, [loadData]);
+  const { loading } = useAutoRefresh(loadData, 10000);
 
   useEffect(() => {
     const params = {};
